@@ -27,7 +27,7 @@ export function EmptyTableState({ onJoined }: { onJoined: () => void }) {
           🍲
         </motion.div>
         <h1 className="mt-5 font-display text-3xl font-semibold text-charcoal-900">
-          Welcome, {profile?.display_name ?? 'Neighbor'}!
+          Welcome, {profile?.full_name ?? profile?.display_name ?? 'Neighbor'}!
         </h1>
         <p className="mt-2 text-charcoal-700/70">
           You haven't taken a seat at any Potluck Tables yet. Join one with a

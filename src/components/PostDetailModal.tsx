@@ -1,15 +1,15 @@
-import { motion } from 'framer-motion'
-import { Carrot, ChefHat, HandHeart, Loader as Loader2, MessageCircle, ShieldCheck, Trash2 } from 'lucide-react'
+import { Carrot, ChefHat, HandHeart, Loader as Loader2, MessageCircle, ShieldCheck, Trash2, Wheat } from 'lucide-react'
 import { useState } from 'react'
-import { supabase, type Post, type Profile, type Transaction } from '../lib/supabase'
+import { supabase, type FoodPost, type Match, type Profile } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { Modal } from '../lib/ui'
 import { useToast } from '../lib/toast'
 
-const CATEGORY_META: Record<string, { label: string; icon: any }> = {
-  dish: { label: 'Freshly Cooked', icon: ChefHat },
-  groceries: { label: 'Extra Groceries', icon: Carrot },
-  help: { label: 'Culinary Help', icon: HandHeart },
+const FOOD_TYPE_META: Record<string, { label: string; icon: any }> = {
+  cooked_meal: { label: 'Freshly Cooked', icon: ChefHat },
+  ingredients: { label: 'Extra Groceries', icon: Carrot },
+  baking_supplies: { label: 'Baking Supplies', icon: Wheat },
+  other: { label: 'Culinary Help', icon: HandHeart },
 }
 
 export function PostDetailModal({
@@ -22,11 +22,11 @@ export function PostDetailModal({
   onDelete,
 }: {
   open: boolean
-  post: Post | null
+  post: FoodPost | null
   author: Profile | null
   myCredits: number
   onClose: () => void
-  onAccept: (txn: Transaction, post: Post, other: Profile) => void
+  onAccept: (match: Match, post: FoodPost, other: Profile) => void
   onDelete: () => void
 }) {
   const { user } = useAuth()
@@ -35,34 +35,34 @@ export function PostDetailModal({
 
   if (!post || !author) return null
 
-  const isMine = post.author_id === user?.id
-  const isOffer = post.kind === 'offer'
-  const cat = CATEGORY_META[post.category]
+  const isMine = post.user_id === user?.id
+  const isOffer = post.type === 'offer'
+  const cat = FOOD_TYPE_META[post.food_type] ?? FOOD_TYPE_META.other
   const CatIcon = cat.icon
-  const canAccept = !isMine && post.status === 'open' && (isOffer || myCredits >= post.credits)
+  const canAccept = !isMine && post.status === 'open' && (isOffer || myCredits >= post.credit_price)
 
   const accept = async () => {
     if (!user || !post) return
     setBusy(true)
-    // Freeze the post by marking it claimed, then create the escrow transaction.
-    const { error: pErr } = await supabase.from('posts').update({ status: 'claimed' }).eq('id', post.id).eq('status', 'open')
+    // Freeze the post by marking it matched, then create the escrow match.
+    const { error: pErr } = await supabase.from('food_posts').update({ status: 'matched' }).eq('id', post.id).eq('status', 'open')
     if (pErr) { push('error', pErr.message); setBusy(false); return }
-    const { data: txn, error: tErr } = await supabase.from('transactions').insert({
+    const { data: match, error: mErr } = await supabase.from('matches').insert({
       post_id: post.id,
       table_id: post.table_id,
-      provider_id: post.author_id,
-      consumer_id: user.id,
-      credits: post.credits,
-      status: 'escrow_held',
+      provider_id: post.user_id,
+      receiver_id: user.id,
+      credits: post.credit_price,
+      status: 'pending',
     }).select('*').single()
-    if (tErr) {
-      // Roll back the claim
-      await supabase.from('posts').update({ status: 'open' }).eq('id', post.id)
-      push('error', tErr.message)
+    if (mErr) {
+      // Roll back the match
+      await supabase.from('food_posts').update({ status: 'open' }).eq('id', post.id)
+      push('error', mErr.message)
       setBusy(false)
       return
     }
-    onAccept(txn as Transaction, post, author)
+    onAccept(match as Match, post, author)
     setBusy(false)
   }
 
@@ -70,7 +70,7 @@ export function PostDetailModal({
     if (!post) return
     if (!confirm('Delete this post?')) return
     setBusy(true)
-    const { error } = await supabase.from('posts').delete().eq('id', post.id)
+    const { error } = await supabase.from('food_posts').delete().eq('id', post.id)
     if (error) { push('error', error.message); setBusy(false); return }
     push('info', 'Post deleted')
     onDelete()
@@ -86,7 +86,7 @@ export function PostDetailModal({
             <img src={post.image_url} alt={post.title} className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-cream-100 to-cream-200 text-7xl">
-              {post.category === 'dish' ? '🍽️' : post.category === 'groceries' ? '🧺' : '🧑‍🍳'}
+              {post.food_type === 'cooked_meal' ? '🍽️' : post.food_type === 'ingredients' ? '🧺' : post.food_type === 'baking_supplies' ? '🥖' : '🧑‍🍳'}
             </div>
           )}
           <div className="absolute left-4 top-4 flex gap-2">
@@ -107,7 +107,7 @@ export function PostDetailModal({
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-cream-100 text-sm">
               {author.avatar_emoji}
             </div>
-            <span className="font-medium text-charcoal-800">{isMine ? 'You' : author.display_name}</span>
+            <span className="font-medium text-charcoal-800">{isMine ? 'You' : (author.full_name ?? author.display_name)}</span>
           </div>
         </div>
 
@@ -122,7 +122,7 @@ export function PostDetailModal({
               {isOffer ? 'Sharing' : 'Credit bounty'}
             </div>
             <div className="font-display text-2xl font-semibold text-charcoal-900">
-              {isOffer ? 'Free' : `🪙 ${post.credits}`}
+              {isOffer ? 'Free' : `🪙 ${post.credit_price}`}
             </div>
           </div>
           {!isOffer && (
@@ -133,9 +133,9 @@ export function PostDetailModal({
         </div>
 
         {/* Insufficient credits warning */}
-        {!isMine && !isOffer && post.status === 'open' && myCredits < post.credits && (
+        {!isMine && !isOffer && post.status === 'open' && myCredits < post.credit_price && (
           <div className="rounded-2xl bg-danger/10 px-4 py-2.5 text-sm font-medium text-danger">
-            You need {post.credits - myCredits} more credits to accept this request.
+            You need {post.credit_price - myCredits} more credits to accept this request.
           </div>
         )}
 
@@ -151,7 +151,7 @@ export function PostDetailModal({
               {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               Delete post
             </button>
-          ) : post.status === 'claimed' ? (
+          ) : post.status === 'matched' ? (
             <div className="flex-1 rounded-2xl bg-amber-400/15 px-4 py-3 text-center text-sm font-semibold text-amber-700">
               Already claimed — check your chats
             </div>

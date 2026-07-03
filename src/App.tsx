@@ -12,7 +12,7 @@ import { Spinner } from './lib/ui'
 function Shell() {
   const { user, loading } = useAuth()
   const { tables, loading: tablesLoading, refresh } = useJoinedTables()
-  const [activeId, setActiveId] = useState<string | null>(null)
+  const [activeId, setActiveId] = useState<number | null>(null)
 
   // Auto-select the most recently joined table on first load.
   useEffect(() => {

@@ -19,6 +19,10 @@ export const supabase = createClient(url, anon, {
 
 export type Profile = {
   id: string
+  full_name: string
+  avatar_url: string | null
+  bio: string | null
+  // UX extras (kept from v1)
   display_name: string
   avatar_emoji: string
   is_super_admin: boolean
@@ -26,61 +30,62 @@ export type Profile = {
 }
 
 export type PotluckTable = {
-  id: string
+  id: number
   name: string
-  emoji: string
   join_code: string
+  emoji: string
   description: string | null
   created_by: string | null
   created_at: string
 }
 
 export type TableMember = {
-  id: string
-  table_id: string
+  id: number
   user_id: string
+  table_id: number
+  role: 'member' | 'table_admin'
   credits: number
   joined_at: string
 }
 
-export type PostKind = 'offer' | 'request'
-export type PostCategory = 'dish' | 'groceries' | 'help'
-export type PostStatus = 'open' | 'claimed' | 'completed' | 'cancelled'
+export type PostType = 'offer' | 'request'
+export type FoodType = 'cooked_meal' | 'ingredients' | 'baking_supplies' | 'other'
+export type PostStatus = 'open' | 'matched' | 'completed' | 'cancelled'
 
-export type Post = {
-  id: string
-  table_id: string
-  author_id: string
-  kind: PostKind
-  category: PostCategory
+export type FoodPost = {
+  id: number
+  user_id: string
+  table_id: number
+  type: PostType
   title: string
-  description: string | null
-  image_url: string | null
-  credits: number
+  description: string
+  food_type: FoodType
+  credit_price: number
   status: PostStatus
+  image_url: string | null
   created_at: string
 }
 
-export type TxnStatus = 'escrow_held' | 'completed' | 'cancelled'
+export type MatchStatus = 'pending' | 'ongoing' | 'completed' | 'disputed'
 
-export type Transaction = {
-  id: string
-  post_id: string
-  table_id: string
+export type Match = {
+  id: number
+  post_id: number
+  table_id: number
   provider_id: string
-  consumer_id: string
+  receiver_id: string
   credits: number
-  status: TxnStatus
+  status: MatchStatus
   provider_confirmed: boolean
-  consumer_confirmed: boolean
+  receiver_confirmed: boolean
   created_at: string
   settled_at: string | null
 }
 
 export type Message = {
-  id: string
-  transaction_id: string
+  id: number
+  match_id: number
   sender_id: string
-  body: string
+  content: string
   created_at: string
 }

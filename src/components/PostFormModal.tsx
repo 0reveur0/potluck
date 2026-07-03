@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
-import { Carrot, ChefHat, HandHeart, Image, Loader as Loader2, Sparkles, Utensils } from 'lucide-react'
+import { Carrot, ChefHat, HandHeart, Image, Loader as Loader2, Sparkles, Utensils, Wheat } from 'lucide-react'
 import { useState } from 'react'
-import { supabase, type PostCategory, type PostKind } from '../lib/supabase'
+import { supabase, type FoodType, type PostType } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { Modal } from '../lib/ui'
 import { useToast } from '../lib/toast'
@@ -15,10 +15,11 @@ const FOOD_IMAGES = [
   'https://images.pexels.com/photos/2284166/pexels-photo-2284166.jpeg?auto=compress&cs=tinysrgb&w=800',
 ]
 
-const CATEGORIES: { id: PostCategory; label: string; icon: any; hint: string }[] = [
-  { id: 'dish', label: 'Homemade Dish', icon: ChefHat, hint: 'A meal you cooked' },
-  { id: 'groceries', label: 'Extra Groceries', icon: Carrot, hint: 'Spare ingredients' },
-  { id: 'help', label: 'Culinary Help', icon: HandHeart, hint: 'A lesson or favor' },
+const FOOD_TYPES: { id: FoodType; label: string; icon: any; hint: string }[] = [
+  { id: 'cooked_meal', label: 'Cooked Meal', icon: ChefHat, hint: 'A meal you cooked' },
+  { id: 'ingredients', label: 'Ingredients', icon: Carrot, hint: 'Spare groceries' },
+  { id: 'baking_supplies', label: 'Baking Supplies', icon: Wheat, hint: 'Flour, yeast, etc.' },
+  { id: 'other', label: 'Other', icon: HandHeart, hint: 'Culinary help or favor' },
 ]
 
 export function PostFormModal({
@@ -29,17 +30,17 @@ export function PostFormModal({
   onCreated,
 }: {
   open: boolean
-  kind: PostKind
-  tableId: string | null
+  kind: PostType
+  tableId: number | null
   onClose: () => void
   onCreated: () => void
 }) {
   const { user } = useAuth()
   const { push } = useToast()
-  const [category, setCategory] = useState<PostCategory>('dish')
+  const [foodType, setFoodType] = useState<FoodType>('cooked_meal')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [credits, setCredits] = useState(5)
+  const [credits, setCredits] = useState(10)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -55,19 +56,19 @@ export function PostFormModal({
     if (title.trim().length < 3) { setErr('Add a short title.'); return }
     if (!isOffer && credits <= 0) { setErr('Set a credit bounty for your request.'); return }
     setBusy(true)
-    const { error } = await supabase.from('posts').insert({
+    const { error } = await supabase.from('food_posts').insert({
       table_id: tableId,
-      author_id: user.id,
-      kind,
-      category,
+      user_id: user.id,
+      type: kind,
       title: title.trim(),
-      description: description.trim() || null,
+      description: description.trim(), // NOT NULL in schema; empty string is fine
+      food_type: foodType,
+      credit_price: isOffer ? 0 : credits,
       image_url: imageUrl,
-      credits: isOffer ? 0 : credits,
       status: 'open',
     })
     if (error) { setErr(error.message); setBusy(false); return }
-    setTitle(''); setDescription(''); setCredits(5); setImageUrl(null)
+    setTitle(''); setDescription(''); setCredits(10); setImageUrl(null)
     push('success', isOffer ? 'Posted to your table! 🍲' : 'Request posted! 🙌')
     onCreated()
     setBusy(false)
@@ -86,18 +87,18 @@ export function PostFormModal({
           </p>
         </div>
 
-        {/* Category */}
+        {/* Food type */}
         <div>
           <label className="mb-1.5 block text-sm font-medium text-charcoal-800">What is it?</label>
-          <div className="grid grid-cols-3 gap-2">
-            {CATEGORIES.map((c) => {
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {FOOD_TYPES.map((c) => {
               const Icon = c.icon
-              const active = category === c.id
+              const active = foodType === c.id
               return (
                 <button
                   type="button"
                   key={c.id}
-                  onClick={() => setCategory(c.id)}
+                  onClick={() => setFoodType(c.id)}
                   className={`flex flex-col items-center gap-1 rounded-2xl border-2 px-2 py-3 text-center transition-all ${
                     active ? 'border-amber-400 bg-amber-400/10' : 'border-cream-200 bg-white/60 hover:bg-cream-100'
                   }`}

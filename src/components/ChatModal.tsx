@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowLeft, Check, CheckCheck, Loader as Loader2, Send, ShieldCheck, Circle as XCircle } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { supabase, type Message, type Post, type Profile, type Transaction } from '../lib/supabase'
+import { supabase, type FoodPost, type Match, type Message, type Profile } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { Modal, Spinner } from '../lib/ui'
 import { useToast } from '../lib/toast'
@@ -9,77 +9,78 @@ import { useToast } from '../lib/toast'
 type ChatModalProps = {
   open: boolean
   onClose: () => void
-  post: Post | null
+  post: FoodPost | null
   other: Profile | null
-  txn: Transaction | null
+  match: Match | null
   onSettled: () => void
 }
 
-export function ChatModal({ open, onClose, post, other, txn, onSettled }: ChatModalProps) {
+export function ChatModal({ open, onClose, post, other, match, onSettled }: ChatModalProps) {
   const { user } = useAuth()
   const { push } = useToast()
   const [messages, setMessages] = useState<Message[]>([])
   const [body, setBody] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
-  const [localTxn, setLocalTxn] = useState<Transaction | null>(txn)
+  const [localMatch, setLocalMatch] = useState<Match | null>(match)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => { setLocalTxn(txn) }, [txn])
+  useEffect(() => { setLocalMatch(match) }, [match])
 
   const loadMessages = async () => {
-    if (!localTxn) return
+    if (!localMatch) return
     const { data, error } = await supabase
       .from('messages')
       .select('*')
-      .eq('transaction_id', localTxn.id)
+      .eq('match_id', localMatch.id)
       .order('created_at', { ascending: true })
     if (!error) setMessages(data ?? [])
     setLoading(false)
   }
 
-  const refreshTxn = async () => {
-    if (!localTxn) return
-    const { data } = await supabase.from('transactions').select('*').eq('id', localTxn.id).maybeSingle()
-    if (data) setLocalTxn(data as Transaction)
+  const refreshMatch = async () => {
+    if (!localMatch) return
+    const { data } = await supabase.from('matches').select('*').eq('id', localMatch.id).maybeSingle()
+    if (data) setLocalMatch(data as Match)
   }
 
   useEffect(() => {
-    if (!open || !localTxn) return
+    if (!open || !localMatch) return
     setLoading(true)
     loadMessages()
     const channel = supabase
-      .channel(`chat-${localTxn.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `transaction_id=eq.${localTxn.id}` }, (payload) => {
+      .channel(`chat-${localMatch.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `match_id=eq.${localMatch.id}` }, (payload) => {
         setMessages((m) => [...m, payload.new as Message])
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'transactions', filter: `id=eq.${localTxn.id}` }, (payload) => {
-        setLocalTxn(payload.new as Transaction)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches', filter: `id=eq.${localMatch.id}` }, (payload) => {
+        setLocalMatch(payload.new as Match)
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, localTxn?.id])
+  }, [open, localMatch?.id])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages])
 
-  if (!open || !post || !other || !localTxn) return null
+  if (!open || !post || !other || !localMatch) return null
 
-  const isProvider = user?.id === localTxn.provider_id
-  const myConfirmed = isProvider ? localTxn.provider_confirmed : localTxn.consumer_confirmed
-  const otherConfirmed = isProvider ? localTxn.consumer_confirmed : localTxn.provider_confirmed
-  const settled = localTxn.status !== 'escrow_held'
+  const isProvider = user?.id === localMatch.provider_id
+  const myConfirmed = isProvider ? localMatch.provider_confirmed : localMatch.receiver_confirmed
+  const otherConfirmed = isProvider ? localMatch.receiver_confirmed : localMatch.provider_confirmed
+  const settled = localMatch.status === 'completed' || localMatch.status === 'disputed'
+  const chatOpen = localMatch.status === 'pending' || localMatch.status === 'ongoing'
 
   const send = async () => {
-    if (!body.trim() || !user || settled) return
+    if (!body.trim() || !user || !chatOpen) return
     const text = body.trim()
     setBody('')
     const { data, error } = await supabase.from('messages').insert({
-      transaction_id: localTxn.id,
+      match_id: localMatch.id,
       sender_id: user.id,
-      body: text,
+      content: text,
     }).select('*').single()
     if (error) { push('error', error.message); setBody(text); return }
     setMessages((m) => [...m, data as Message])
@@ -88,11 +89,11 @@ export function ChatModal({ open, onClose, post, other, txn, onSettled }: ChatMo
   const confirmExchange = async () => {
     if (!user || settled) return
     setBusy(true)
-    const { error } = await supabase.rpc('settle_transaction', { p_txn: localTxn.id, p_as_provider: isProvider })
+    const { error } = await supabase.rpc('settle_match', { p_match: localMatch.id, p_as_provider: isProvider })
     if (error) { push('error', error.message); setBusy(false); return }
-    await refreshTxn()
+    await refreshMatch()
     push('success', 'Confirmed! 🤝')
-    if ((await supabase.from('transactions').select('*').eq('id', localTxn.id).maybeSingle()).data?.status === 'completed') {
+    if ((await supabase.from('matches').select('*').eq('id', localMatch.id).maybeSingle()).data?.status === 'completed') {
       onSettled()
     }
     setBusy(false)
@@ -102,9 +103,9 @@ export function ChatModal({ open, onClose, post, other, txn, onSettled }: ChatMo
     if (!user || settled) return
     if (!confirm('Cancel this exchange? Escrow will be released.')) return
     setBusy(true)
-    const { error } = await supabase.rpc('cancel_transaction', { p_txn: localTxn.id })
+    const { error } = await supabase.rpc('cancel_match', { p_match: localMatch.id })
     if (error) { push('error', error.message); setBusy(false); return }
-    await refreshTxn()
+    await refreshMatch()
     push('info', 'Exchange cancelled.')
     onSettled()
     setBusy(false)
@@ -121,23 +122,22 @@ export function ChatModal({ open, onClose, post, other, txn, onSettled }: ChatMo
           {other.avatar_emoji}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate font-display text-base font-semibold text-charcoal-900">{other.display_name}</div>
+          <div className="truncate font-display text-base font-semibold text-charcoal-900">{other.full_name ?? other.display_name}</div>
           <div className="truncate text-xs text-charcoal-700/60">
-            {post.kind === 'offer' ? 'Sharing' : 'Requesting'} · {post.title}
+            {post.type === 'offer' ? 'Sharing' : 'Requesting'} · {post.title}
           </div>
         </div>
         <div className="flex items-center gap-1.5 rounded-full bg-amber-400/15 px-3 py-1 text-sm font-bold text-amber-700">
-          🪙 {localTxn.credits}
+          🪙 {localMatch.credits}
         </div>
       </div>
 
       {/* Escrow status banner */}
       <div className="mt-3">
         <EscrowBanner
-          status={localTxn.status}
+          status={localMatch.status}
           myConfirmed={myConfirmed}
           otherConfirmed={otherConfirmed}
-          isProvider={isProvider}
         />
       </div>
 
@@ -165,7 +165,7 @@ export function ChatModal({ open, onClose, post, other, txn, onSettled }: ChatMo
                     <div className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-sm ${
                       mine ? 'bg-amber-500 text-white' : 'bg-white text-charcoal-900 shadow-card'
                     }`}>
-                      {m.body}
+                      {m.content}
                     </div>
                   </motion.div>
                 )
@@ -177,7 +177,7 @@ export function ChatModal({ open, onClose, post, other, txn, onSettled }: ChatMo
 
       {/* Actions */}
       <div className="mt-3 space-y-2">
-        {!settled && (
+        {chatOpen && (
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={confirmExchange}
@@ -194,10 +194,10 @@ export function ChatModal({ open, onClose, post, other, txn, onSettled }: ChatMo
         )}
         {settled && (
           <div className={`flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium ${
-            localTxn.status === 'completed' ? 'bg-success/15 text-success' : 'bg-danger/10 text-danger'
+            localMatch.status === 'completed' ? 'bg-success/15 text-success' : 'bg-danger/10 text-danger'
           }`}>
-            {localTxn.status === 'completed' ? <CheckCheck className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
-            {localTxn.status === 'completed'
+            {localMatch.status === 'completed' ? <CheckCheck className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+            {localMatch.status === 'completed'
               ? 'Exchange complete — credits transferred.'
               : 'Exchange cancelled — escrow released.'}
           </div>
@@ -223,10 +223,9 @@ export function ChatModal({ open, onClose, post, other, txn, onSettled }: ChatMo
 }
 
 function EscrowBanner({
-  status, myConfirmed, otherConfirmed, isProvider,
-}: { status: string; myConfirmed: boolean; otherConfirmed: boolean; isProvider: boolean }) {
-  if (status === 'completed') return null
-  if (status === 'cancelled') return null
+  status, myConfirmed, otherConfirmed,
+}: { status: string; myConfirmed: boolean; otherConfirmed: boolean }) {
+  if (status === 'completed' || status === 'disputed') return null
   return (
     <div className="flex items-center gap-2 rounded-2xl bg-amber-400/10 px-3 py-2 text-xs font-medium text-amber-700">
       <ShieldCheck className="h-4 w-4 shrink-0" />

@@ -24,31 +24,16 @@ export function JoinTableModal({ open, onClose, onJoined }: { open: boolean; onC
       setBusy(false)
       return
     }
-    // Look up the table by join_code so we can show its name on success.
-    const { data: table, error: tErr } = await supabase
-      .from('tables')
-      .select('*')
-      .eq('join_code', clean)
-      .maybeSingle()
-    if (tErr || !table) {
-      setErr('No table found with that code.')
-      setBusy(false)
-      return
-    }
-    const { error } = await supabase.from('table_members').insert({
-      table_id: (table as PotluckTable).id,
-      user_id: user.id,
-      join_code: clean,
-      credits: 50,
-    })
+    // join_table() looks up the table by code and inserts the membership row
+    // server-side (SECURITY DEFINER), returning the table row.
+    const { data: table, error } = await supabase.rpc('join_table', { p_code: clean })
     if (error) {
-      if (error.code === '23505') setErr('You already belong to this table.')
-      else setErr(error.message)
+      setErr(error.message)
       setBusy(false)
       return
     }
     setCode('')
-    onJoined(table as PotluckTable)
+    onJoined(table as unknown as PotluckTable)
     setBusy(false)
   }
 

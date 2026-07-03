@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { display_name: displayName } },
+      options: { data: { full_name: displayName } },
     })
     if (error) return { error: error.message }
     if (data.user) {

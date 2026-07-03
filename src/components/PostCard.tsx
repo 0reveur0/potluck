@@ -1,19 +1,18 @@
 import { motion } from 'framer-motion'
-import { Carrot, ChefHat, Clock, HandHeart, MapPin, MessageCircle } from 'lucide-react'
-import { useState } from 'react'
-import type { Post, Profile } from '../lib/supabase'
-import { useAuth } from '../lib/auth'
+import { Carrot, ChefHat, Clock, HandHeart, Wheat } from 'lucide-react'
+import type { FoodPost, Profile } from '../lib/supabase'
 import { CreditsPill } from '../lib/ui'
 
-const CATEGORY_META: Record<string, { label: string; icon: any; color: string }> = {
-  dish: { label: 'Freshly Cooked', icon: ChefHat, color: 'bg-amber-400/20 text-amber-700' },
-  groceries: { label: 'Extra Groceries', icon: Carrot, color: 'bg-olive-400/20 text-olive-700' },
-  help: { label: 'Culinary Help', icon: HandHeart, color: 'bg-cream-300/40 text-charcoal-800' },
+const FOOD_TYPE_META: Record<string, { label: string; icon: any; color: string }> = {
+  cooked_meal: { label: 'Freshly Cooked', icon: ChefHat, color: 'bg-amber-400/20 text-amber-700' },
+  ingredients: { label: 'Extra Groceries', icon: Carrot, color: 'bg-olive-400/20 text-olive-700' },
+  baking_supplies: { label: 'Baking Supplies', icon: Wheat, color: 'bg-cream-300/40 text-charcoal-800' },
+  other: { label: 'Culinary Help', icon: HandHeart, color: 'bg-cream-300/40 text-charcoal-800' },
 }
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
   open: { label: 'Open', color: 'bg-success/15 text-success' },
-  claimed: { label: 'Claimed', color: 'bg-amber-400/20 text-amber-700' },
+  matched: { label: 'Claimed', color: 'bg-amber-400/20 text-amber-700' },
   completed: { label: 'Completed', color: 'bg-cream-200 text-charcoal-700' },
   cancelled: { label: 'Cancelled', color: 'bg-danger/10 text-danger' },
 }
@@ -34,16 +33,15 @@ export function PostCard({
   author,
   onOpen,
 }: {
-  post: Post
+  post: FoodPost
   author: Profile
   onOpen: () => void
 }) {
-  const { user } = useAuth()
-  const isMine = post.author_id === user?.id
-  const cat = CATEGORY_META[post.category]
-  const status = STATUS_META[post.status]
+  const isMine = post.user_id === author.id
+  const cat = FOOD_TYPE_META[post.food_type] ?? FOOD_TYPE_META.other
+  const status = STATUS_META[post.status] ?? STATUS_META.open
   const CatIcon = cat.icon
-  const isOffer = post.kind === 'offer'
+  const isOffer = post.type === 'offer'
 
   return (
     <motion.button
@@ -66,7 +64,7 @@ export function PostCard({
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-cream-100 to-cream-200 text-5xl">
-            {post.category === 'dish' ? '🍽️' : post.category === 'groceries' ? '🧺' : '🧑‍🍳'}
+            {post.food_type === 'cooked_meal' ? '🍽️' : post.food_type === 'ingredients' ? '🧺' : post.food_type === 'baking_supplies' ? '🥖' : '🧑‍🍳'}
           </div>
         )}
         {/* Status badge */}
@@ -101,7 +99,7 @@ export function PostCard({
               {author.avatar_emoji}
             </div>
             <div className="text-xs">
-              <div className="font-semibold text-charcoal-800">{isMine ? 'You' : author.display_name}</div>
+              <div className="font-semibold text-charcoal-800">{isMine ? 'You' : (author.full_name ?? author.display_name)}</div>
               <div className="flex items-center gap-1 text-charcoal-700/50">
                 <Clock className="h-2.5 w-2.5" /> {timeAgo(post.created_at)}
               </div>
@@ -110,7 +108,7 @@ export function PostCard({
           {isOffer ? (
             <span className="text-xs font-semibold text-olive-600">Free share</span>
           ) : (
-            <CreditsPill amount={post.credits} />
+            <CreditsPill amount={post.credit_price} />
           )}
         </div>
       </div>

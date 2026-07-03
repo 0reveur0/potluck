@@ -14,8 +14,8 @@ export function Sidebar({
   onJoined,
 }: {
   tables: TableWithMember[]
-  activeId: string | null
-  onSelect: (id: string) => void
+  activeId: number | null
+  onSelect: (id: number) => void
   onJoined: () => void
 }) {
   const { profile, signOut } = useAuth()
@@ -122,7 +122,7 @@ export function Sidebar({
             {profile?.avatar_emoji ?? '🧑‍🍳'}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold text-charcoal-900">{profile?.display_name ?? 'Neighbor'}</div>
+            <div className="truncate text-sm font-semibold text-charcoal-900">{profile?.full_name ?? profile?.display_name ?? 'Neighbor'}</div>
             <div className="flex items-center gap-1 text-xs text-charcoal-700/60">
               <Settings className="h-3 w-3" /> Profile
             </div>

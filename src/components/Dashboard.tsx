@@ -1,9 +1,9 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { Carrot, ChefHat, Filter, HandHeart, MessageCircle, Plus, Search, Utensils } from 'lucide-react'
+import { ChefHat, HandHeart, Plus, Search, Utensils } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useAuth } from '../lib/auth'
-import { useMyTransactions, useTablePosts, type TableWithMember } from '../lib/hooks'
-import { supabase, type Post, PostKind, Profile, Transaction } from '../lib/supabase'
+import { useMyMatches, useTablePosts, type TableWithMember } from '../lib/hooks'
+import { supabase, type FoodPost, type Match, type PostType, type Profile } from '../lib/supabase'
 import { EmptyState } from '../lib/ui'
 import { ChatModal } from './ChatModal'
 import { PostCard } from './PostCard'
@@ -21,12 +21,12 @@ export function Dashboard({
 }) {
   const { user } = useAuth()
   const { posts, loading, refresh } = useTablePosts(table.id)
-  const { txns, refresh: refreshTxns } = useMyTransactions()
-  const [formKind, setFormKind] = useState<PostKind | null>(null)
+  const { matches, refresh: refreshMatches } = useMyMatches()
+  const [formKind, setFormKind] = useState<PostType | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
   const [query, setQuery] = useState('')
-  const [detailPost, setDetailPost] = useState<Post | null>(null)
-  const [chat, setChat] = useState<{ txn: Transaction; post: Post; other: Profile } | null>(null)
+  const [detailPost, setDetailPost] = useState<FoodPost | null>(null)
+  const [chat, setChat] = useState<{ match: Match; post: FoodPost; other: Profile } | null>(null)
 
   const authorMap = useMemo(() => {
     const m = new Map<string, Profile>()
@@ -36,36 +36,35 @@ export function Dashboard({
 
   const filtered = useMemo(() => {
     return posts.filter((p: any) => {
-      if (filter === 'offers' && p.kind !== 'offer') return false
-      if (filter === 'requests' && p.kind !== 'request') return false
-      if (filter === 'mine' && p.author_id !== user?.id) return false
+      if (filter === 'offers' && p.type !== 'offer') return false
+      if (filter === 'requests' && p.type !== 'request') return false
+      if (filter === 'mine' && p.user_id !== user?.id) return false
       if (query.trim() && !(`${p.title} ${p.description ?? ''}`.toLowerCase().includes(query.toLowerCase()))) return false
       return true
     })
   }, [posts, filter, query, user?.id])
 
-  const openChatForPost = async (post: Post) => {
-    const txn = txns.find((t: any) => t.post_id === post.id) as Transaction | undefined
-    if (!txn) return
-    const otherId = txn.provider_id === user?.id ? txn.consumer_id : txn.provider_id
-    const other = authorMap.get(otherId) as Profile | undefined
+  const openChatForPost = async (post: FoodPost) => {
+    const match = matches.find((m: any) => m.post_id === post.id) as Match | undefined
+    if (!match) return
+    const otherId = match.provider_id === user?.id ? match.receiver_id : match.provider_id
+    let other = authorMap.get(otherId) as Profile | undefined
     if (!other) {
       const { data } = await supabase
         .from('profiles').select('*').eq('id', otherId).maybeSingle()
-      if (data) setChat({ txn, post, other: data as Profile })
-      return
+      if (data) other = data as Profile
     }
-    setChat({ txn, post, other })
+    if (other) setChat({ match, post, other })
   }
 
-  const handleAccept = (txn: Transaction, post: Post, other: Profile) => {
+  const handleAccept = (match: Match, post: FoodPost, other: Profile) => {
     setDetailPost(null)
-    setChat({ txn, post, other })
+    setChat({ match, post, other })
     refresh()
-    refreshTxns()
+    refreshMatches()
   }
 
-  const activeChats = txns.filter((t: any) => t.status === 'escrow_held') as Transaction[]
+  const activeMatches = matches.filter((m: any) => m.status === 'pending' || m.status === 'ongoing') as Match[]
 
   return (
     <div className="flex h-full flex-col">
@@ -91,23 +90,23 @@ export function Dashboard({
         </div>
 
         {/* Active chats strip */}
-        {activeChats.length > 0 && (
+        {activeMatches.length > 0 && (
           <div className="mt-3 flex items-center gap-2 overflow-x-auto no-scrollbar">
             <span className="shrink-0 text-xs font-semibold uppercase tracking-wider text-charcoal-700/50">Active exchanges</span>
-            {activeChats.map((t) => {
-              const otherId = t.provider_id === user?.id ? t.consumer_id : t.provider_id
+            {activeMatches.map((m) => {
+              const otherId = m.provider_id === user?.id ? m.receiver_id : m.provider_id
               const other = authorMap.get(otherId)
               if (!other) return null
-              const post = posts.find((p: any) => p.id === t.post_id) as Post | undefined
+              const post = posts.find((p: any) => p.id === m.post_id) as FoodPost | undefined
               return (
                 <button
-                  key={t.id}
+                  key={m.id}
                   onClick={() => post && openChatForPost(post)}
                   className="flex shrink-0 items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm shadow-card ring-1 ring-cream-200 transition-all hover:ring-amber-400"
                 >
                   <span>{other.avatar_emoji}</span>
-                  <span className="font-medium text-charcoal-800">{other.display_name}</span>
-                  <span className="text-amber-700">🪙{t.credits}</span>
+                  <span className="font-medium text-charcoal-800">{other.full_name ?? other.display_name}</span>
+                  <span className="text-amber-700">🪙{m.credits}</span>
                 </button>
               )
             })}
@@ -197,9 +196,9 @@ export function Dashboard({
                 {filtered.map((p: any) => (
                   <PostCard
                     key={p.id}
-                    post={p as Post}
+                    post={p as FoodPost}
                     author={p.author as Profile}
-                    onOpen={() => setDetailPost(p as Post)}
+                    onOpen={() => setDetailPost(p as FoodPost)}
                   />
                 ))}
               </AnimatePresence>
@@ -229,7 +228,7 @@ export function Dashboard({
       <PostDetailModal
         open={!!detailPost}
         post={detailPost}
-        author={detailPost ? authorMap.get(detailPost.author_id) ?? null : null}
+        author={detailPost ? authorMap.get(detailPost.user_id) ?? null : null}
         myCredits={table.member.credits}
         onClose={() => setDetailPost(null)}
         onAccept={handleAccept}
@@ -237,11 +236,11 @@ export function Dashboard({
       />
       <ChatModal
         open={!!chat}
-        txn={chat?.txn ?? null}
+        match={chat?.match ?? null}
         post={chat?.post ?? null}
         other={chat?.other ?? null}
         onClose={() => setChat(null)}
-        onSettled={() => { refresh(); refreshTxns(); onTablesChanged() }}
+        onSettled={() => { refresh(); refreshMatches(); onTablesChanged() }}
       />
     </div>
   )
@@ -250,7 +249,7 @@ export function Dashboard({
 function DualCTA({
   kind, onClick, title, subtitle, icon, tone,
 }: {
-  kind: PostKind
+  kind: PostType
   onClick: () => void
   title: string
   subtitle: string
