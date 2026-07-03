@@ -50,21 +50,25 @@ export type TableMember = {
 
 export type PostType = 'offer' | 'request'
 export type FoodType = 'cooked_meal' | 'ingredients' | 'baking_supplies' | 'other'
+export type StudySubject = 'Math' | 'Physics' | 'Chemistry' | 'English' | 'Programming' | 'Other' | string
 export type PostStatus = 'open' | 'matched' | 'completed' | 'cancelled'
 
-export type FoodPost = {
+export type StudyPost = {
   id: number
   user_id: string
   table_id: number
   type: PostType
   title: string
   description: string
-  food_type: FoodType
+  subject: StudySubject
   credit_price: number
   status: PostStatus
   image_url: string | null
+  food_type: FoodType
   created_at: string
 }
+
+export type FoodPost = StudyPost
 
 export type MatchStatus = 'pending' | 'ongoing' | 'completed' | 'disputed'
 

@@ -1,15 +1,13 @@
-import { Carrot, ChefHat, HandHeart, Loader as Loader2, MessageCircle, ShieldCheck, Trash2, Wheat } from 'lucide-react'
+import { ChefHat, HandHeart, Loader as Loader2, MessageCircle, ShieldCheck, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { supabase, type FoodPost, type Match, type Profile } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { Modal } from '../lib/ui'
 import { useToast } from '../lib/toast'
 
-const FOOD_TYPE_META: Record<string, { label: string; icon: any }> = {
-  cooked_meal: { label: 'Freshly Cooked', icon: ChefHat },
-  ingredients: { label: 'Extra Groceries', icon: Carrot },
-  baking_supplies: { label: 'Baking Supplies', icon: Wheat },
-  other: { label: 'Culinary Help', icon: HandHeart },
+const POST_TYPE_META: Record<string, { label: string; icon: any; color: string }> = {
+  offer: { label: 'Teaching', icon: ChefHat, color: 'bg-olive-500 text-white' },
+  request: { label: 'Learning', icon: HandHeart, color: 'bg-amber-500 text-white' },
 }
 
 export function PostDetailModal({
@@ -37,31 +35,58 @@ export function PostDetailModal({
 
   const isMine = post.user_id === user?.id
   const isOffer = post.type === 'offer'
-  const cat = FOOD_TYPE_META[post.food_type] ?? FOOD_TYPE_META.other
-  const CatIcon = cat.icon
+  const meta = POST_TYPE_META[post.type] ?? POST_TYPE_META.request
   const canAccept = !isMine && post.status === 'open' && (isOffer || myCredits >= post.credit_price)
 
   const accept = async () => {
     if (!user || !post) return
+
+    const payerId = isOffer ? user.id : post.user_id
+    const providerId = isOffer ? post.user_id : user.id
+    const receiverId = isOffer ? user.id : post.user_id
+
+    // Verify payer credits
+    if (!isOffer) {
+      const { data: payer, error: payerErr } = await supabase
+        .from('table_members')
+        .select('credits')
+        .eq('table_id', post.table_id)
+        .eq('user_id', payerId)
+        .maybeSingle()
+      if (payerErr || !payer || payer.credits < post.credit_price) {
+        push('error', 'Insufficient credits in this Potluck Table!')
+        return
+      }
+    } else if (myCredits < post.credit_price) {
+      push('error', 'Insufficient credits in this Potluck Table!')
+      return
+    }
+
     setBusy(true)
-    // Freeze the post by marking it matched, then create the escrow match.
-    const { error: pErr } = await supabase.from('food_posts').update({ status: 'matched' }).eq('id', post.id).eq('status', 'open')
+
+    const { error: pErr } = await supabase
+      .from('food_posts')
+      .update({ status: 'matched' })
+      .eq('id', post.id)
+      .eq('status', 'open')
     if (pErr) { push('error', pErr.message); setBusy(false); return }
+
     const { data: match, error: mErr } = await supabase.from('matches').insert({
       post_id: post.id,
       table_id: post.table_id,
-      provider_id: post.user_id,
-      receiver_id: user.id,
+      provider_id: providerId,
+      receiver_id: receiverId,
       credits: post.credit_price,
-      status: 'pending',
+      status: 'ongoing',
     }).select('*').single()
+
     if (mErr) {
-      // Roll back the match
       await supabase.from('food_posts').update({ status: 'open' }).eq('id', post.id)
       push('error', mErr.message)
       setBusy(false)
       return
     }
+
     onAccept(match as Match, post, author)
     setBusy(false)
   }
@@ -90,11 +115,9 @@ export function PostDetailModal({
             </div>
           )}
           <div className="absolute left-4 top-4 flex gap-2">
-            <span className={`badge ${isOffer ? 'bg-olive-500 text-white' : 'bg-amber-500 text-white'}`}>
-              {isOffer ? 'Offer' : 'Request'}
-            </span>
+            <span className={`badge ${meta.color}`}>{meta.label}</span>
             <span className="badge bg-white/90 text-charcoal-800">
-              <CatIcon className="h-3 w-3" /> {cat.label}
+              {post.subject || 'Other'}
             </span>
           </div>
         </div>
@@ -144,7 +167,7 @@ export function PostDetailModal({
           {canAccept ? (
             <button onClick={accept} disabled={busy} className="btn-primary flex-1">
               {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-              {isOffer ? 'Accept & chat' : 'Accept & escrow'}
+              Claim / Connect
             </button>
           ) : isMine && post.status === 'open' ? (
             <button onClick={remove} disabled={busy} className="btn-outline flex-1 text-danger hover:bg-danger/10">

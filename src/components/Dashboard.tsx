@@ -3,7 +3,7 @@ import { ChefHat, HandHeart, Plus, Search, Utensils } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useAuth } from '../lib/auth'
 import { useMyMatches, useTablePosts, type TableWithMember } from '../lib/hooks'
-import { supabase, type FoodPost, type Match, type PostType, type Profile } from '../lib/supabase'
+import { supabase, type FoodPost, type Match, type PostType, type Profile, type StudySubject } from '../lib/supabase'
 import { EmptyState } from '../lib/ui'
 import { ChatModal } from './ChatModal'
 import { PostCard } from './PostCard'
@@ -11,6 +11,7 @@ import { PostDetailModal } from './PostDetailModal'
 import { PostFormModal } from './PostFormModal'
 
 type Filter = 'all' | 'offers' | 'requests' | 'mine'
+const SUBJECTS: StudySubject[] = ['Math', 'Physics', 'Chemistry', 'English', 'Programming', 'Other']
 
 export function Dashboard({
   table,
@@ -24,6 +25,7 @@ export function Dashboard({
   const { matches, refresh: refreshMatches } = useMyMatches()
   const [formKind, setFormKind] = useState<PostType | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
+  const [subjectFilter, setSubjectFilter] = useState<StudySubject | 'all'>('all')
   const [query, setQuery] = useState('')
   const [detailPost, setDetailPost] = useState<FoodPost | null>(null)
   const [chat, setChat] = useState<{ match: Match; post: FoodPost; other: Profile } | null>(null)
@@ -39,10 +41,11 @@ export function Dashboard({
       if (filter === 'offers' && p.type !== 'offer') return false
       if (filter === 'requests' && p.type !== 'request') return false
       if (filter === 'mine' && p.user_id !== user?.id) return false
-      if (query.trim() && !(`${p.title} ${p.description ?? ''}`.toLowerCase().includes(query.toLowerCase()))) return false
+      if (subjectFilter !== 'all' && p.subject !== subjectFilter) return false
+      if (query.trim() && !(`${p.subject} ${p.title} ${p.description ?? ''}`.toLowerCase().includes(query.toLowerCase()))) return false
       return true
     })
-  }, [posts, filter, query, user?.id])
+  }, [posts, filter, query, subjectFilter, user?.id])
 
   const openChatForPost = async (post: FoodPost) => {
     const match = matches.find((m: any) => m.post_id === post.id) as Match | undefined
@@ -65,29 +68,52 @@ export function Dashboard({
   }
 
   const activeMatches = matches.filter((m: any) => m.status === 'pending' || m.status === 'ongoing') as Match[]
+  const totalTaught = posts.filter((p: any) => p.user_id === user?.id && p.type === 'offer').length
+  const totalLearned = posts.filter((p: any) => p.user_id === user?.id && p.type === 'request').length
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col bg-charcoal-950 text-cream-50">
       {/* Header */}
-      <div className="border-b border-cream-200 bg-cream-50/80 px-4 py-4 backdrop-blur sm:px-6">
+      <div className="border-b border-charcoal-700 bg-charcoal-900/95 px-4 py-4 backdrop-blur sm:px-6">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-400/20 text-2xl">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/20 text-2xl text-amber-100 shadow-warm">
             {table.emoji}
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="font-display text-2xl font-semibold text-charcoal-900">{table.name}</h1>
-            <p className="text-sm text-charcoal-700/60">
-              {table.description ?? 'A private Potluck Table'} · Code <span className="font-mono font-bold text-amber-700">{table.join_code}</span>
+            <h1 className="font-display text-2xl font-semibold text-cream-50">{table.name}</h1>
+            <p className="text-sm text-cream-200/70">
+              {table.description ?? 'Your study clan dashboard'} · Code <span className="font-mono font-bold text-amber-300">{table.join_code}</span>
             </p>
           </div>
-          <div className="flex items-center gap-2 rounded-2xl bg-amber-400/15 px-4 py-2">
-            <span className="text-lg">🪙</span>
+          <div className="flex min-w-[220px] items-center justify-between gap-3 rounded-3xl bg-charcoal-800/80 px-5 py-3 shadow-card">
             <div>
-              <div className="text-xs font-medium text-charcoal-700/60">Your credits</div>
-              <div className="font-display text-lg font-bold leading-none text-amber-700">{table.member.credits}</div>
+              <div className="text-xs font-medium uppercase tracking-[0.18em] text-cream-300/80">Study Credit</div>
+              <div className="mt-1 flex items-center gap-2 text-xl font-semibold text-amber-300">
+                <span>💰</span>
+                {table.member.credits}
+              </div>
             </div>
           </div>
         </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-3xl bg-amber-500/10 px-4 py-4 text-sm text-cream-50 shadow-card">
+            <div className="text-xs uppercase tracking-[0.22em] text-amber-200/80">Sessions Taught</div>
+            <div className="mt-2 text-2xl font-semibold">{totalTaught}</div>
+          </div>
+          <div className="rounded-3xl bg-olive-500/10 px-4 py-4 text-sm text-cream-50 shadow-card">
+            <div className="text-xs uppercase tracking-[0.22em] text-olive-200/80">Sessions Learned</div>
+            <div className="mt-2 text-2xl font-semibold">{totalLearned}</div>
+          </div>
+          <div className="rounded-3xl bg-charcoal-800/80 px-4 py-4 text-sm text-cream-100 shadow-card">
+            <div className="text-xs uppercase tracking-[0.22em] text-cream-300/80">Table members</div>
+            <div className="mt-2 text-2xl font-semibold">{table.member ? 'You' : '—'}</div>
+          </div>
+          <div className="rounded-3xl bg-charcoal-800/80 px-4 py-4 text-sm text-cream-100 shadow-card">
+            <div className="text-xs uppercase tracking-[0.22em] text-cream-300/80">Active exchanges</div>
+            <div className="mt-2 text-2xl font-semibold">{activeMatches.length}</div>
+          </div>
+        </div>
+      </div>
 
         {/* Active chats strip */}
         {activeMatches.length > 0 && (
@@ -112,58 +138,77 @@ export function Dashboard({
             })}
           </div>
         )}
-      </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto bg-paper px-4 py-5 sm:px-6">
+      <div className="flex-1 overflow-y-auto bg-charcoal-950 px-4 py-5 sm:px-6">
         {/* Dual CTAs */}
         <div className="grid gap-3 sm:grid-cols-2">
           <DualCTA
             kind="offer"
             onClick={() => setFormKind('offer')}
-            title="Share a Dish"
-            subtitle="Offer homemade meals, extra groceries, or baking supplies"
+            title="💡 Share Knowledge (Teach)"
+            subtitle="Offer a study session, explain a concept, or guide a peer"
             icon={<Utensils className="h-6 w-6" />}
             tone="olive"
           />
           <DualCTA
             kind="request"
             onClick={() => setFormKind('request')}
-            title="Request a Bite"
-            subtitle="Ask for a meal, a missing ingredient, or culinary help"
+            title="🙋‍♂️ Ask for Help (Learn)"
+            subtitle="Request tutoring, homework support, or exam coaching"
             icon={<HandHeart className="h-6 w-6" />}
             tone="amber"
           />
         </div>
 
         {/* Feed controls */}
-        <div className="mt-6 flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1 rounded-2xl bg-white p-1 shadow-card">
-            {([
-              ['all', 'All'],
-              ['offers', 'Offers'],
-              ['requests', 'Requests'],
-              ['mine', 'Mine'],
-            ] as [Filter, string][]).map(([f, label]) => (
+        <div className="mt-6 space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 rounded-2xl bg-charcoal-900/80 p-1 shadow-card">
+              {([
+                ['all', 'All'],
+                ['requests', 'Looking for Tutors (Requests)'],
+                ['offers', 'Available Tutors (Offers)'],
+                ['mine', 'Mine'],
+              ] as [Filter, string][]).map(([f, label]) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition-all ${
+                    filter === f ? 'bg-amber-500 text-charcoal-950 shadow-warm' : 'text-cream-200/80 hover:bg-charcoal-800'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="relative flex-1 min-w-[180px]">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-cream-200/60" />
+              <input
+                className="input bg-charcoal-900/90 text-cream-50 placeholder:!text-cream-300"
+                placeholder="Search topics…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto rounded-3xl bg-charcoal-900/80 p-3 no-scrollbar">
+            <button
+              onClick={() => setSubjectFilter('all')}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${subjectFilter === 'all' ? 'bg-amber-500 text-charcoal-950' : 'text-cream-200/80 hover:bg-charcoal-800'}`}
+            >
+              All Subjects
+            </button>
+            {SUBJECTS.map((subject) => (
               <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition-all ${
-                  filter === f ? 'bg-amber-500 text-white shadow-warm' : 'text-charcoal-700/70 hover:bg-cream-100'
-                }`}
+                key={subject}
+                onClick={() => setSubjectFilter(subject)}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${subjectFilter === subject ? 'bg-olive-500 text-charcoal-950' : 'text-cream-200/80 hover:bg-charcoal-800'}`}
               >
-                {label}
+                {subject}
               </button>
             ))}
-          </div>
-          <div className="relative flex-1 min-w-[180px]">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-charcoal-700/40" />
-            <input
-              className="input pl-9"
-              placeholder="Search the feast…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
           </div>
         </div>
 
@@ -222,6 +267,7 @@ export function Dashboard({
         open={formKind !== null}
         kind={formKind ?? 'offer'}
         tableId={table.id}
+        memberCredits={table.member.credits}
         onClose={() => setFormKind(null)}
         onCreated={() => { setFormKind(null); refresh(); onTablesChanged() }}
       />
@@ -261,23 +307,25 @@ function DualCTA({
       whileHover={{ y: -2 }}
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
-      className={`group relative overflow-hidden rounded-3xl p-5 text-left shadow-card transition-shadow hover:shadow-warm ${
+      className={`group relative overflow-hidden rounded-[2rem] p-6 text-left shadow-card transition-all focus:outline-none focus:ring-2 focus:ring-amber-300 ${
         tone === 'olive'
-          ? 'bg-gradient-to-br from-olive-400 to-olive-600 text-white'
-          : 'bg-gradient-to-br from-amber-400 to-amber-600 text-white'
+          ? 'bg-gradient-to-br from-olive-500 via-olive-600 to-charcoal-900 text-cream-50'
+          : 'bg-gradient-to-br from-amber-500 via-amber-600 to-charcoal-900 text-cream-50'
       }`}
     >
       <div className="relative z-10 flex items-start gap-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 backdrop-blur">
+        <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-white/15 text-2xl shadow-inner">
           {icon}
         </div>
         <div className="flex-1">
           <div className="font-display text-xl font-semibold">{title}</div>
-          <p className="mt-0.5 text-sm text-white/85">{subtitle}</p>
+          <p className="mt-1 text-sm text-cream-200/90">{subtitle}</p>
         </div>
-        <Plus className="h-5 w-5 text-white/70 transition-transform group-hover:rotate-90" />
+        <div className="flex h-11 w-11 items-center justify-center rounded-3xl bg-white/10 text-lg text-cream-200 transition-transform group-hover:scale-105">
+          +
+        </div>
       </div>
-      <div className="absolute -right-6 -bottom-6 h-24 w-24 rounded-full bg-white/10" />
+      <div className="absolute -right-8 -bottom-8 h-28 w-28 rounded-full bg-white/10 blur-xl" />
     </motion.button>
   )
 }

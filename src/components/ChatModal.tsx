@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, Check, CheckCheck, Loader as Loader2, Send, ShieldCheck, Circle as XCircle } from 'lucide-react'
+import { ArrowLeft, Check, CheckCheck, Loader as Loader2, Send, ShieldCheck, Circle as XCircle, Sparkles, Star } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { supabase, type FoodPost, type Match, type Message, type Profile } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
@@ -23,6 +23,7 @@ export function ChatModal({ open, onClose, post, other, match, onSettled }: Chat
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [localMatch, setLocalMatch] = useState<Match | null>(match)
+  const [celebrate, setCelebrate] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { setLocalMatch(match) }, [match])
@@ -65,6 +66,19 @@ export function ChatModal({ open, onClose, post, other, match, onSettled }: Chat
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages])
 
+  useEffect(() => {
+    if (!localMatch || !open) return
+    if (localMatch.status === 'completed') {
+      setCelebrate(true)
+      const timer = window.setTimeout(() => {
+        setCelebrate(false)
+        onSettled()
+      }, 2200)
+      return () => window.clearTimeout(timer)
+    }
+    return undefined
+  }, [localMatch?.status, open, onSettled])
+
   if (!open || !post || !other || !localMatch) return null
 
   const isProvider = user?.id === localMatch.provider_id
@@ -72,6 +86,7 @@ export function ChatModal({ open, onClose, post, other, match, onSettled }: Chat
   const otherConfirmed = isProvider ? localMatch.receiver_confirmed : localMatch.provider_confirmed
   const settled = localMatch.status === 'completed' || localMatch.status === 'disputed'
   const chatOpen = localMatch.status === 'pending' || localMatch.status === 'ongoing'
+  const escrowAmount = localMatch.credits
 
   const send = async () => {
     if (!body.trim() || !user || !chatOpen) return
@@ -114,21 +129,35 @@ export function ChatModal({ open, onClose, post, other, match, onSettled }: Chat
   return (
     <Modal open={open} onClose={onClose} maxWidth="max-w-lg">
       {/* Header */}
-      <div className="-m-5 mb-0 flex items-center gap-3 border-b border-cream-200 bg-cream-50 px-4 py-3 rounded-t-3xl">
-        <button onClick={onClose} className="rounded-full p-1.5 text-charcoal-700/60 hover:bg-cream-200 md:hidden">
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cream-100 text-lg">
-          {other.avatar_emoji}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-display text-base font-semibold text-charcoal-900">{other.full_name ?? other.display_name}</div>
-          <div className="truncate text-xs text-charcoal-700/60">
-            {post.type === 'offer' ? 'Sharing' : 'Requesting'} · {post.title}
+      <div className="-m-5 mb-0 grid gap-3 rounded-t-3xl border-b border-cream-200 bg-cream-50 p-4 md:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="flex items-center gap-3">
+          <button onClick={onClose} className="rounded-full p-1.5 text-charcoal-700/60 hover:bg-cream-200 md:hidden">
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <div className="flex h-12 w-12 items-center justify-center rounded-3xl bg-cream-100 text-2xl shadow-card">
+            {other.avatar_emoji}
+          </div>
+          <div className="min-w-0">
+            <div className="truncate font-display text-lg font-semibold text-charcoal-900">{other.full_name ?? other.display_name}</div>
+            <div className="truncate text-xs text-charcoal-700/60">{post.type === 'offer' ? 'Tutor available' : 'Help requested'}</div>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 rounded-full bg-amber-400/15 px-3 py-1 text-sm font-bold text-amber-700">
-          🪙 {localMatch.credits}
+        <div className="rounded-3xl bg-charcoal-900/90 p-4 text-cream-50 shadow-card">
+          <div className="text-[11px] uppercase tracking-[0.25em] text-amber-300/80">Match info</div>
+          <div className="mt-3 space-y-2 text-sm">
+            <div className="flex items-center justify-between gap-2 rounded-2xl bg-white/10 px-3 py-2">
+              <span>Tutor</span>
+              <span className="font-semibold">{post.type === 'offer' ? (post.user_id === other.id ? other.full_name ?? other.display_name : 'You') : (isProvider ? other.full_name ?? other.display_name : 'You')}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-2xl bg-white/10 px-3 py-2">
+              <span>Topic</span>
+              <span className="font-semibold">{post.title}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-2xl bg-white/10 px-3 py-2">
+              <span>Bounty</span>
+              <span className="font-semibold">🪙 {escrowAmount}</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -138,6 +167,7 @@ export function ChatModal({ open, onClose, post, other, match, onSettled }: Chat
           status={localMatch.status}
           myConfirmed={myConfirmed}
           otherConfirmed={otherConfirmed}
+          escrowAmount={escrowAmount}
         />
       </div>
 
@@ -185,7 +215,7 @@ export function ChatModal({ open, onClose, post, other, match, onSettled }: Chat
               className={`btn-primary ${myConfirmed ? 'opacity-60' : ''}`}
             >
               {myConfirmed ? <CheckCheck className="h-4 w-4" /> : <Check className="h-4 w-4" />}
-              {myConfirmed ? 'You confirmed' : 'Confirm exchange'}
+              {myConfirmed ? 'You confirmed' : 'Mark Session Completed'}
             </button>
             <button onClick={cancel} disabled={busy} className="btn-outline text-danger hover:bg-danger/10">
               <XCircle className="h-4 w-4" /> Cancel
@@ -198,8 +228,8 @@ export function ChatModal({ open, onClose, post, other, match, onSettled }: Chat
           }`}>
             {localMatch.status === 'completed' ? <CheckCheck className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
             {localMatch.status === 'completed'
-              ? 'Exchange complete — credits transferred.'
-              : 'Exchange cancelled — escrow released.'}
+              ? 'Session complete — credits transferred.'
+              : 'Session cancelled — escrow released.'}
           </div>
         )}
 
@@ -223,17 +253,23 @@ export function ChatModal({ open, onClose, post, other, match, onSettled }: Chat
 }
 
 function EscrowBanner({
-  status, myConfirmed, otherConfirmed,
-}: { status: string; myConfirmed: boolean; otherConfirmed: boolean }) {
+  status, myConfirmed, otherConfirmed, escrowAmount,
+}: { status: string; myConfirmed: boolean; otherConfirmed: boolean; escrowAmount: number }) {
   if (status === 'completed' || status === 'disputed') return null
   return (
-    <div className="flex items-center gap-2 rounded-2xl bg-amber-400/10 px-3 py-2 text-xs font-medium text-amber-700">
-      <ShieldCheck className="h-4 w-4 shrink-0" />
-      <span className="flex-1">
-        Escrow held · {myConfirmed ? 'You confirmed' : 'Awaiting your confirmation'}
-        {' · '}
-        {otherConfirmed ? 'Neighbor confirmed' : 'Awaiting neighbor'}
-      </span>
+    <div className="flex flex-col gap-3 rounded-2xl bg-amber-400/10 px-4 py-3 text-sm text-amber-700">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-semibold">Status: {status === 'ongoing' ? 'Ongoing' : 'Pending'}</span>
+        <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-900">{escrowAmount} Credits Frozen</span>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <div className="rounded-2xl bg-white/10 px-3 py-2 text-xs text-cream-100">
+          {myConfirmed ? 'You confirmed' : 'Awaiting your confirmation'}
+        </div>
+        <div className="rounded-2xl bg-white/10 px-3 py-2 text-xs text-cream-100">
+          {otherConfirmed ? 'Neighbor confirmed' : 'Awaiting neighbor'}
+        </div>
+      </div>
     </div>
   )
 }

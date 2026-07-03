@@ -170,6 +170,7 @@ CREATE TABLE IF NOT EXISTS food_posts (
   type text NOT NULL CHECK (type IN ('offer', 'request')),
   title text NOT NULL,
   description text NOT NULL DEFAULT '',
+  subject text NOT NULL DEFAULT 'Other',
   food_type text NOT NULL DEFAULT 'other' CHECK (food_type IN ('cooked_meal', 'ingredients', 'baking_supplies', 'other')),
   credit_price int NOT NULL DEFAULT 10 CHECK (credit_price >= 0),
   status text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'matched', 'completed', 'cancelled')),
