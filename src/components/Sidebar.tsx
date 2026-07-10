@@ -1,9 +1,10 @@
+'use client'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ChefHat, LogOut, Plus, Settings, Sparkles, X } from 'lucide-react'
+import { BookOpen, LogOut, Plus, X } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '../lib/auth'
 import { useToast } from '../lib/toast'
-import type { TableWithMember } from '../lib/hooks'
+import type { TableWithMember } from '../lib/types'
 import { CreateTableModal } from './CreateTableModal'
 import { JoinTableModal } from './JoinTableModal'
 
@@ -18,36 +19,30 @@ export function Sidebar({
   onSelect: (id: number) => void
   onJoined: () => void
 }) {
-  const { profile, signOut } = useAuth()
+  const { user, signOut } = useAuth()
   const { push } = useToast()
   const [joinOpen, setJoinOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  const isSuperAdmin = profile?.is_super_admin
-
   const content = (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col bg-charcoal-900 border-r border-white/8"
+      style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
       {/* Brand */}
-      <div className="flex items-center gap-2 px-5 py-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500 text-white shadow-warm">
-          <ChefHat className="h-5 w-5" />
-        </div>
+      <div className="flex items-center gap-3 px-5 py-5">
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/20 text-xl">🍲</div>
         <div>
-          <div className="font-display text-lg font-semibold leading-none text-charcoal-900">Potluck</div>
-          <div className="text-xs text-charcoal-700/60">Share the feast</div>
+          <div className="font-bold text-cream-50">Potluck</div>
+          <div className="text-xs text-cream-200/40">Knowledge sharing</div>
         </div>
-        <button
-          onClick={() => setMobileOpen(false)}
-          className="ml-auto rounded-full p-1.5 text-charcoal-700/60 hover:bg-cream-200 md:hidden"
-        >
+        <button onClick={() => setMobileOpen(false)} className="ml-auto rounded-full p-1.5 text-cream-200/40 hover:bg-white/10 md:hidden">
           <X className="h-5 w-5" />
         </button>
       </div>
 
       {/* Tables list */}
-      <div className="px-3">
-        <div className="px-2 pb-2 text-xs font-semibold uppercase tracking-wider text-charcoal-700/50">
+      <div className="flex-1 overflow-y-auto px-3 py-2">
+        <div className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-cream-200/30">
           Your Tables
         </div>
         <div className="space-y-1">
@@ -63,75 +58,66 @@ export function Sidebar({
                   exit={{ opacity: 0, x: -8 }}
                   onClick={() => { onSelect(t.id); setMobileOpen(false) }}
                   className={`group flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-all ${
-                    active ? 'bg-amber-400/20 ring-1 ring-amber-400' : 'hover:bg-cream-100'
+                    active
+                      ? 'ring-1 ring-amber-500/50'
+                      : 'hover:bg-white/5'
                   }`}
+                  style={active ? { background: 'rgba(245,158,11,0.12)' } : {}}
                 >
                   <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xl ${
-                    active ? 'bg-amber-500/20' : 'bg-cream-100'
-                  }`}>
+                    active ? '' : 'bg-white/5'
+                  }`} style={active ? { background: 'rgba(245,158,11,0.15)' } : {}}>
                     {t.emoji}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className={`truncate text-sm font-semibold ${active ? 'text-charcoal-900' : 'text-charcoal-800'}`}>
+                    <div className={`truncate text-sm font-semibold ${active ? 'text-amber-300' : 'text-cream-100'}`}>
                       {t.name}
                     </div>
-                    <div className="text-xs text-charcoal-700/60">
-                      🪙 {t.member.credits} credits
-                    </div>
+                    <div className="text-xs text-cream-200/40">🪙 {t.member.credits} credits</div>
                   </div>
                 </motion.button>
               )
             })}
           </AnimatePresence>
+
           {tables.length === 0 && (
-            <div className="px-3 py-6 text-center text-sm text-charcoal-700/60">
-              You haven't joined a table yet.
+            <div className="px-3 py-6 text-center text-sm text-cream-200/30">
+              No tables yet
             </div>
           )}
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="mt-auto space-y-2 p-3">
+      {/* Bottom actions */}
+      <div className="space-y-2 border-t border-white/6 p-3" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
         <button
           onClick={() => setJoinOpen(true)}
-          className="flex w-full items-center gap-3 rounded-2xl border-2 border-dashed border-amber-400/60 bg-amber-400/10 px-3 py-3 text-left text-sm font-semibold text-amber-700 transition-all hover:bg-amber-400/20"
+          className="flex w-full items-center gap-3 rounded-2xl border border-dashed border-amber-400/30 bg-amber-400/8 px-3 py-3 text-left text-sm font-medium text-amber-300 transition hover:bg-amber-400/15"
+          style={{ background: 'rgba(245,158,11,0.05)' }}
         >
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-400/30">
-            <Plus className="h-4 w-4" />
-          </div>
-          Join a Table
+          <BookOpen className="h-4 w-4" />
+          Enter Join Code
         </button>
 
-        {isSuperAdmin && (
+        {user?.isAdmin && (
           <button
             onClick={() => setCreateOpen(true)}
-            className="flex w-full items-center gap-3 rounded-2xl bg-charcoal-900 px-3 py-3 text-left text-sm font-semibold text-cream-50 transition-all hover:bg-charcoal-800"
+            className="flex w-full items-center gap-3 rounded-2xl bg-white/5 px-3 py-3 text-left text-sm font-medium text-cream-200/60 transition hover:bg-white/10 hover:text-cream-50"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10">
-              <Sparkles className="h-4 w-4" />
-            </div>
-            Create a Table
-            <span className="ml-auto rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">Admin</span>
+            <Plus className="h-4 w-4" />
+            Create Table (Admin)
           </button>
         )}
 
-        {/* Profile footer */}
-        <div className="mt-2 flex items-center gap-3 rounded-2xl bg-cream-100 px-3 py-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-lg">
-            {profile?.avatar_emoji ?? '🧑‍🍳'}
+        <div className="flex items-center gap-2 px-1 pt-1">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/15 text-lg">
+            {user?.avatarEmoji ?? '🧑'}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold text-charcoal-900">{profile?.full_name ?? profile?.display_name ?? 'Neighbor'}</div>
-            <div className="flex items-center gap-1 text-xs text-charcoal-700/60">
-              <Settings className="h-3 w-3" /> Profile
-            </div>
+            <div className="truncate text-xs font-semibold text-cream-100">{user?.displayName}</div>
+            {user?.isAdmin && <div className="text-[10px] text-amber-400">Super Admin</div>}
           </div>
-          <button
-            onClick={() => { signOut(); push('info', 'Signed out') }}
-            className="rounded-xl p-2 text-charcoal-700/60 hover:bg-cream-200 hover:text-danger"
-            title="Sign out"
-          >
+          <button onClick={signOut} className="rounded-lg p-1.5 text-cream-200/30 hover:bg-white/10 hover:text-cream-200 transition">
             <LogOut className="h-4 w-4" />
           </button>
         </div>
@@ -142,43 +128,26 @@ export function Sidebar({
   return (
     <>
       {/* Desktop */}
-      <aside className="hidden w-72 shrink-0 border-r border-cream-200 bg-cream-50/80 backdrop-blur md:block">
-        {content}
-      </aside>
+      <aside className="hidden w-64 shrink-0 md:block">{content}</aside>
 
       {/* Mobile top bar */}
-      <div className="sticky top-0 z-30 flex items-center gap-2 border-b border-cream-200 bg-cream-50/90 px-4 py-3 backdrop-blur md:hidden">
-        <button
-          onClick={() => setMobileOpen(true)}
-          className="rounded-xl bg-cream-100 p-2 text-charcoal-800"
-        >
-          <ChefHat className="h-5 w-5" />
+      <div className="fixed inset-x-0 top-0 z-30 flex items-center gap-3 border-b border-white/6 bg-charcoal-900/95 px-4 py-3 backdrop-blur md:hidden"
+        style={{ background: 'rgba(32,30,26,0.95)', borderColor: 'rgba(255,255,255,0.06)' }}>
+        <button onClick={() => setMobileOpen(true)} className="rounded-xl bg-white/10 p-2 text-cream-200">
+          🍲
         </button>
-        <span className="font-display text-lg font-semibold text-charcoal-900">Potluck</span>
-        {activeId && (
-          <span className="ml-auto text-sm font-medium text-charcoal-700/70">
-            {tables.find((t) => t.id === activeId)?.emoji} {tables.find((t) => t.id === activeId)?.name}
-          </span>
-        )}
+        <span className="font-bold text-cream-50">Potluck</span>
       </div>
 
       {/* Mobile drawer */}
       <AnimatePresence>
         {mobileOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 md:hidden"
-          >
-            <div className="absolute inset-0 bg-charcoal-900/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-            <motion.aside
-              initial={{ x: -300 }}
-              animate={{ x: 0 }}
-              exit={{ x: -300 }}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 md:hidden">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+            <motion.aside initial={{ x: -280 }} animate={{ x: 0 }} exit={{ x: -280 }}
               transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-              className="absolute left-0 top-0 h-full w-72 border-r border-cream-200 bg-cream-50"
-            >
+              className="absolute left-0 top-0 h-full w-72">
               {content}
             </motion.aside>
           </motion.div>
@@ -188,12 +157,12 @@ export function Sidebar({
       <JoinTableModal
         open={joinOpen}
         onClose={() => setJoinOpen(false)}
-        onJoined={(t) => { onJoined(); setJoinOpen(false); push('success', `Joined ${t.name} ${t.emoji}`) }}
+        onJoined={(t) => { onJoined(); setJoinOpen(false); push('success', `Joined ${t.name} ${t.emoji} · 50 credits added!`) }}
       />
       <CreateTableModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreated={(t) => { setCreateOpen(false); push('success', `Table ${t.name} created! Code: ${t.join_code}`) }}
+        onCreated={(t) => { setCreateOpen(false); push('success', `Table created! Code: ${t.join_code}`) }}
       />
     </>
   )

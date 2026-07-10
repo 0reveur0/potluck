@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: #141209;
+    color: #fdf8f0;
+  }
+}
+
+@layer components {
+  .card {
+    border-radius: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background-color: rgba(32, 30, 26, 0.8);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+
+  .input {
+    @apply w-full rounded-xl px-4 py-2.5 text-sm outline-none ring-0 transition;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    background-color: #32302b;
+    color: #fdf8f0;
+  }
+
+  .input::placeholder {
+    color: rgba(253, 248, 240, 0.30);
+  }
+
+  .input:focus {
+    border-color: rgba(245, 158, 11, 0.60);
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.20);
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5
+           text-sm font-semibold transition-all
+           active:scale-95 disabled:cursor-not-allowed disabled:opacity-50;
+    background-color: #f59e0b;
+    color: #141209;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background-color: #fbbf24;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5
+           text-sm font-medium transition-all active:scale-95;
+    color: rgba(253, 248, 240, 0.70);
+  }
+
+  .btn-ghost:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    color: #fdf8f0;
+  }
+}
+
+@layer utilities {
+  .shadow-warm {
+    box-shadow: 0 4px 24px -4px rgba(251, 191, 36, 0.10), 0 2px 8px -2px rgba(0, 0, 0, 0.3);
+  }
+  .shadow-warm-lg {
+    box-shadow: 0 8px 40px -8px rgba(251, 191, 36, 0.18), 0 4px 16px -4px rgba(0, 0, 0, 0.4);
+  }
+  .glow-amber {
+    box-shadow: 0 0 24px rgba(251, 191, 36, 0.25);
+  }
+  .text-gradient-amber {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b, #d97706);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .bg-charcoal-950 { background-color: #141209; }
+  .bg-charcoal-900 { background-color: #20201a; }
+  .bg-charcoal-800 { background-color: #32302b; }
+  .text-cream-50  { color: #fdf8f0; }
+  .text-cream-100 { color: #faf5eb; }
+  .text-cream-200 { color: #f4ead9; }
+  .border-charcoal-700 { border-color: #47453e; }
+}

@@ -1,14 +1,11 @@
-import { ChefHat, HandHeart, Loader as Loader2, MessageCircle, ShieldCheck, Trash2 } from 'lucide-react'
+'use client'
+import { BookOpen, Loader2, MessageCircle, ShieldCheck, Trash2 } from 'lucide-react'
 import { useState } from 'react'
-import { supabase, type FoodPost, type Match, type Profile } from '../lib/supabase'
+import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { Modal } from '../lib/ui'
+import type { Match, Profile, StudyPost } from '../lib/types'
+import { CreditsPill, Modal } from '../lib/ui'
 import { useToast } from '../lib/toast'
-
-const POST_TYPE_META: Record<string, { label: string; icon: any; color: string }> = {
-  offer: { label: 'Teaching', icon: ChefHat, color: 'bg-olive-500 text-white' },
-  request: { label: 'Learning', icon: HandHeart, color: 'bg-amber-500 text-white' },
-}
 
 export function PostDetailModal({
   open,
@@ -20,11 +17,11 @@ export function PostDetailModal({
   onDelete,
 }: {
   open: boolean
-  post: FoodPost | null
+  post: StudyPost | null
   author: Profile | null
   myCredits: number
   onClose: () => void
-  onAccept: (match: Match, post: FoodPost, other: Profile) => void
+  onAccept: (match: Match, post: StudyPost, other: Profile) => void
   onDelete: () => void
 }) {
   const { user } = useAuth()
@@ -33,161 +30,105 @@ export function PostDetailModal({
 
   if (!post || !author) return null
 
-  const isMine = post.user_id === user?.id
-  const isOffer = post.type === 'offer'
-  const meta = POST_TYPE_META[post.type] ?? POST_TYPE_META.request
-  const canAccept = !isMine && post.status === 'open' && (isOffer || myCredits >= post.credit_price)
+  const isMine  = post.user_id === user?.id
+  const isOffer = post.type === 'offer_to_teach'
+
+  // For offer_to_teach: learner (me) pays → check my credits
+  // For request_to_learn: teacher (me) earns → no credit check on claimer
+  const iCanAfford = isOffer ? myCredits >= post.credit_price : true
+  const canAccept  = !isMine && post.status === 'open' && iCanAfford
 
   const accept = async () => {
-    if (!user || !post) return
-
-    const payerId = isOffer ? user.id : post.user_id
-    const providerId = isOffer ? post.user_id : user.id
-    const receiverId = isOffer ? user.id : post.user_id
-
-    // Verify payer credits
-    if (!isOffer) {
-      const { data: payer, error: payerErr } = await supabase
-        .from('table_members')
-        .select('credits')
-        .eq('table_id', post.table_id)
-        .eq('user_id', payerId)
-        .maybeSingle()
-      if (payerErr || !payer || payer.credits < post.credit_price) {
-        push('error', 'Insufficient credits in this Potluck Table!')
-        return
-      }
-    } else if (myCredits < post.credit_price) {
-      push('error', 'Insufficient credits in this Potluck Table!')
-      return
-    }
-
+    if (!post) return
     setBusy(true)
-
-    const { error: pErr } = await supabase
-      .from('food_posts')
-      .update({ status: 'matched' })
-      .eq('id', post.id)
-      .eq('status', 'open')
-    if (pErr) { push('error', pErr.message); setBusy(false); return }
-
-    const { data: match, error: mErr } = await supabase.from('matches').insert({
-      post_id: post.id,
-      table_id: post.table_id,
-      provider_id: providerId,
-      receiver_id: receiverId,
-      credits: post.credit_price,
-      status: 'ongoing',
-    }).select('*').single()
-
-    if (mErr) {
-      await supabase.from('food_posts').update({ status: 'open' }).eq('id', post.id)
-      push('error', mErr.message)
+    try {
+      const { match, other } = await api.post<{ match: Match; other: Profile }>(
+        `/api/posts/${post.id}/claim`,
+        {}
+      )
+      onAccept(match, post, other)
+    } catch (err) {
+      push('error', (err as Error).message)
+    } finally {
       setBusy(false)
-      return
     }
-
-    onAccept(match as Match, post, author)
-    setBusy(false)
   }
 
   const remove = async () => {
     if (!post) return
-    if (!confirm('Delete this post?')) return
+    if (!window.confirm('Delete this post?')) return
     setBusy(true)
-    const { error } = await supabase.from('food_posts').delete().eq('id', post.id)
-    if (error) { push('error', error.message); setBusy(false); return }
-    push('info', 'Post deleted')
-    onDelete()
-    setBusy(false)
+    try {
+      await api.del(`/api/posts/${post.id}`)
+      push('info', 'Post deleted.')
+      onDelete()
+    } catch (err) {
+      push('error', (err as Error).message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
     <Modal open={open} onClose={onClose} maxWidth="max-w-lg">
       <div className="-m-5 mb-0">
-        {/* Hero image */}
-        <div className="relative aspect-[16/10] w-full overflow-hidden rounded-t-3xl bg-cream-100">
-          {post.image_url ? (
-            <img src={post.image_url} alt={post.title} className="h-full w-full object-cover" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-cream-100 to-cream-200 text-7xl">
-              {post.food_type === 'cooked_meal' ? '🍽️' : post.food_type === 'ingredients' ? '🧺' : post.food_type === 'baking_supplies' ? '🥖' : '🧑‍🍳'}
-            </div>
-          )}
-          <div className="absolute left-4 top-4 flex gap-2">
-            <span className={`badge ${meta.color}`}>{meta.label}</span>
-            <span className="badge bg-white/90 text-charcoal-800">
-              {post.subject || 'Other'}
+        <div className="flex items-center gap-3 rounded-t-3xl px-6 py-5"
+          style={{ background: isOffer ? 'rgba(180,83,9,0.25)' : 'rgba(21,128,61,0.2)' }}>
+          <span className="text-4xl">{isOffer ? '📖' : '🙋'}</span>
+          <div>
+            <span className={`badge text-xs font-bold text-white ${isOffer ? 'bg-amber-600' : 'bg-green-700'}`}>
+              {isOffer ? 'Offer to Teach' : 'Request to Learn'}
             </span>
+            <h2 className="mt-1 text-xl font-bold text-cream-50 leading-snug">{post.title}</h2>
           </div>
         </div>
       </div>
 
       <div className="mt-4 space-y-4">
-        <div>
-          <h2 className="font-display text-2xl font-semibold text-charcoal-900">{post.title}</h2>
-          <div className="mt-1 flex items-center gap-2 text-sm text-charcoal-700/70">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-cream-100 text-sm">
-              {author.avatar_emoji}
-            </div>
-            <span className="font-medium text-charcoal-800">{isMine ? 'You' : (author.full_name ?? author.display_name)}</span>
-          </div>
+        {/* Subject + credits */}
+        <div className="flex items-center gap-3">
+          <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-300">
+            {post.subject}
+          </span>
+          <CreditsPill amount={post.credit_price} />
         </div>
 
+        {/* Description */}
         {post.description && (
-          <p className="text-sm leading-relaxed text-charcoal-700/80">{post.description}</p>
+          <p className="text-sm leading-relaxed text-cream-200/70">{post.description}</p>
         )}
 
-        {/* Credit / escrow box */}
-        <div className={`flex items-center justify-between rounded-2xl p-4 ${isOffer ? 'bg-olive-400/10' : 'bg-amber-400/10'}`}>
+        {/* Author */}
+        <div className="flex items-center gap-3 rounded-2xl bg-white/5 px-4 py-3">
+          <span className="text-2xl">{author.avatar_emoji}</span>
           <div>
-            <div className="text-xs font-semibold uppercase tracking-wider text-charcoal-700/60">
-              {isOffer ? 'Sharing' : 'Credit bounty'}
-            </div>
-            <div className="font-display text-2xl font-semibold text-charcoal-900">
-              {isOffer ? 'Free' : `🪙 ${post.credit_price}`}
+            <div className="text-sm font-semibold text-cream-50">{author.display_name || author.full_name}</div>
+            <div className="text-xs text-cream-200/50">
+              {isOffer ? 'Available to teach' : 'Looking for a tutor'}
             </div>
           </div>
-          {!isOffer && (
-            <div className="flex items-center gap-1.5 text-xs font-medium text-amber-700">
-              <ShieldCheck className="h-4 w-4" /> Held in escrow
-            </div>
-          )}
         </div>
 
-        {/* Insufficient credits warning */}
-        {!isMine && !isOffer && post.status === 'open' && myCredits < post.credit_price && (
-          <div className="rounded-2xl bg-danger/10 px-4 py-2.5 text-sm font-medium text-danger">
-            You need {post.credit_price - myCredits} more credits to accept this request.
+        {/* Credit affordability warning */}
+        {!isMine && isOffer && !iCanAfford && (
+          <div className="rounded-2xl bg-red-500/10 px-4 py-3 text-sm text-red-400">
+            You need {post.credit_price} credits but only have {myCredits} in this table.
           </div>
         )}
 
         {/* Actions */}
-        <div className="flex gap-2">
-          {canAccept ? (
-            <button onClick={accept} disabled={busy} className="btn-primary flex-1">
-              {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-              Claim / Connect
+        <div className="flex gap-2 pt-1">
+          {isMine ? (
+            <button onClick={remove} disabled={busy || post.status !== 'open'}
+              className="btn-ghost flex-1 gap-2 text-red-400 hover:text-red-300">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Delete Post
             </button>
-          ) : isMine && post.status === 'open' ? (
-            <button onClick={remove} disabled={busy} className="btn-outline flex-1 text-danger hover:bg-danger/10">
-              {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              Delete post
-            </button>
-          ) : post.status === 'matched' ? (
-            <div className="flex-1 rounded-2xl bg-amber-400/15 px-4 py-3 text-center text-sm font-semibold text-amber-700">
-              Already claimed — check your chats
-            </div>
-          ) : post.status === 'completed' ? (
-            <div className="flex-1 rounded-2xl bg-success/15 px-4 py-3 text-center text-sm font-semibold text-success">
-              Completed 🎉
-            </div>
           ) : (
-            <div className="flex-1 rounded-2xl bg-cream-100 px-4 py-3 text-center text-sm font-semibold text-charcoal-700/70">
-              Cancelled
-            </div>
+            <button onClick={accept} disabled={busy || !canAccept} className="btn-primary flex-1 py-3 gap-2">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : isOffer ? <><MessageCircle className="h-4 w-4" /> Connect &amp; Start Session</> : <><ShieldCheck className="h-4 w-4" /> Accept as Tutor</>}
+            </button>
           )}
-          <button onClick={onClose} className="btn-ghost">Close</button>
         </div>
       </div>
     </Modal>

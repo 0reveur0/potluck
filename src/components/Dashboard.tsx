@@ -1,9 +1,10 @@
+'use client'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ChefHat, HandHeart, Plus, Search, Utensils } from 'lucide-react'
+import { HandHeart, Plus, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useAuth } from '../lib/auth'
-import { useMyMatches, useTablePosts, type TableWithMember } from '../lib/hooks'
-import { supabase, type FoodPost, type Match, type PostType, type Profile, type StudySubject } from '../lib/supabase'
+import { useMyMatches, useTablePosts } from '../lib/hooks'
+import type { Match, PostType, Profile, StudyPost, TableWithMember } from '../lib/types'
 import { EmptyState } from '../lib/ui'
 import { ChatModal } from './ChatModal'
 import { PostCard } from './PostCard'
@@ -11,7 +12,7 @@ import { PostDetailModal } from './PostDetailModal'
 import { PostFormModal } from './PostFormModal'
 
 type Filter = 'all' | 'offers' | 'requests' | 'mine'
-const SUBJECTS: StudySubject[] = ['Math', 'Physics', 'Chemistry', 'English', 'Programming', 'Other']
+const SUBJECTS = ['Math', 'Physics', 'Chemistry', 'English', 'Programming', 'Other']
 
 export function Dashboard({
   table,
@@ -23,309 +24,190 @@ export function Dashboard({
   const { user } = useAuth()
   const { posts, loading, refresh } = useTablePosts(table.id)
   const { matches, refresh: refreshMatches } = useMyMatches()
+
   const [formKind, setFormKind] = useState<PostType | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
-  const [subjectFilter, setSubjectFilter] = useState<StudySubject | 'all'>('all')
+  const [subjectFilter, setSubjectFilter] = useState<string>('all')
   const [query, setQuery] = useState('')
-  const [detailPost, setDetailPost] = useState<FoodPost | null>(null)
-  const [chat, setChat] = useState<{ match: Match; post: FoodPost; other: Profile } | null>(null)
+  const [detailPost, setDetailPost] = useState<StudyPost | null>(null)
+  const [chat, setChat] = useState<{ match: Match; post: StudyPost; other: Profile } | null>(null)
 
   const authorMap = useMemo(() => {
     const m = new Map<string, Profile>()
-    posts.forEach((p: any) => { if (p.author) m.set(p.author.id, p.author) })
+    posts.forEach((p) => { if (p.author) m.set(p.user_id, p.author) })
     return m
   }, [posts])
 
   const filtered = useMemo(() => {
-    return posts.filter((p: any) => {
-      if (filter === 'offers' && p.type !== 'offer') return false
-      if (filter === 'requests' && p.type !== 'request') return false
-      if (filter === 'mine' && p.user_id !== user?.id) return false
+    return posts.filter((p) => {
+      if (filter === 'offers'   && p.type !== 'offer_to_teach') return false
+      if (filter === 'requests' && p.type !== 'request_to_learn') return false
+      if (filter === 'mine'     && p.user_id !== user?.id) return false
       if (subjectFilter !== 'all' && p.subject !== subjectFilter) return false
-      if (query.trim() && !(`${p.subject} ${p.title} ${p.description ?? ''}`.toLowerCase().includes(query.toLowerCase()))) return false
+      if (query.trim() && !(`${p.subject} ${p.title} ${p.description}`).toLowerCase().includes(query.toLowerCase())) return false
       return true
     })
   }, [posts, filter, query, subjectFilter, user?.id])
 
-  const openChatForPost = async (post: FoodPost) => {
-    const match = matches.find((m: any) => m.post_id === post.id) as Match | undefined
+  const openChatForPost = (post: StudyPost) => {
+    const match = matches.find((m) => m.post_id === post.id)
     if (!match) return
-    const otherId = match.provider_id === user?.id ? match.receiver_id : match.provider_id
-    let other = authorMap.get(otherId) as Profile | undefined
-    if (!other) {
-      const { data } = await supabase
-        .from('profiles').select('*').eq('id', otherId).maybeSingle()
-      if (data) other = data as Profile
-    }
+    const other = match.other ?? authorMap.get(
+      match.provider_id === user?.id ? match.receiver_id : match.provider_id
+    )
     if (other) setChat({ match, post, other })
   }
 
-  const handleAccept = (match: Match, post: FoodPost, other: Profile) => {
+  const handleAccept = (match: Match, post: StudyPost, other: Profile) => {
     setDetailPost(null)
     setChat({ match, post, other })
     refresh()
     refreshMatches()
+    onTablesChanged() // credit balance may change
   }
 
-  const activeMatches = matches.filter((m: any) => m.status === 'pending' || m.status === 'ongoing') as Match[]
-  const totalTaught = posts.filter((p: any) => p.user_id === user?.id && p.type === 'offer').length
-  const totalLearned = posts.filter((p: any) => p.user_id === user?.id && p.type === 'request').length
+  const activeMatches = matches.filter((m) => m.status === 'pending' || m.status === 'ongoing')
 
   return (
-    <div className="flex h-full flex-col bg-charcoal-950 text-cream-50">
+    <div className="flex h-full flex-col text-cream-50" style={{ background: '#141209' }}>
       {/* Header */}
-      <div className="border-b border-charcoal-700 bg-charcoal-900/95 px-4 py-4 backdrop-blur sm:px-6">
+      <div className="border-b border-white/6 px-4 py-4 backdrop-blur sm:px-6"
+        style={{ background: 'rgba(32,30,26,0.95)', borderColor: 'rgba(255,255,255,0.06)' }}>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/20 text-2xl text-amber-100 shadow-warm">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/15 text-2xl">
             {table.emoji}
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="font-display text-2xl font-semibold text-cream-50">{table.name}</h1>
-            <p className="text-sm text-cream-200/70">
-              {table.description ?? 'Your study clan dashboard'} · Code <span className="font-mono font-bold text-amber-300">{table.join_code}</span>
+            <h1 className="text-2xl font-bold text-cream-50">{table.name}</h1>
+            <p className="text-sm text-cream-200/50">
+              🪙 {table.member.credits} credits · {activeMatches.length} active session{activeMatches.length !== 1 ? 's' : ''}
             </p>
           </div>
-          <div className="flex min-w-[220px] items-center justify-between gap-3 rounded-3xl bg-charcoal-800/80 px-5 py-3 shadow-card">
-            <div>
-              <div className="text-xs font-medium uppercase tracking-[0.18em] text-cream-300/80">Study Credit</div>
-              <div className="mt-1 flex items-center gap-2 text-xl font-semibold text-amber-300">
-                <span>💰</span>
-                {table.member.credits}
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-3xl bg-amber-500/10 px-4 py-4 text-sm text-cream-50 shadow-card">
-            <div className="text-xs uppercase tracking-[0.22em] text-amber-200/80">Sessions Taught</div>
-            <div className="mt-2 text-2xl font-semibold">{totalTaught}</div>
-          </div>
-          <div className="rounded-3xl bg-olive-500/10 px-4 py-4 text-sm text-cream-50 shadow-card">
-            <div className="text-xs uppercase tracking-[0.22em] text-olive-200/80">Sessions Learned</div>
-            <div className="mt-2 text-2xl font-semibold">{totalLearned}</div>
-          </div>
-          <div className="rounded-3xl bg-charcoal-800/80 px-4 py-4 text-sm text-cream-100 shadow-card">
-            <div className="text-xs uppercase tracking-[0.22em] text-cream-300/80">Table members</div>
-            <div className="mt-2 text-2xl font-semibold">{table.member ? 'You' : '—'}</div>
-          </div>
-          <div className="rounded-3xl bg-charcoal-800/80 px-4 py-4 text-sm text-cream-100 shadow-card">
-            <div className="text-xs uppercase tracking-[0.22em] text-cream-300/80">Active exchanges</div>
-            <div className="mt-2 text-2xl font-semibold">{activeMatches.length}</div>
+          <div className="flex gap-2">
+            <button onClick={() => setFormKind('offer_to_teach')}
+              className="btn-primary gap-2 px-4 py-2 text-sm">
+              <Plus className="h-4 w-4" /> Teach
+            </button>
+            <button onClick={() => setFormKind('request_to_learn')}
+              className="btn-ghost gap-2 px-4 py-2 text-sm border border-white/10">
+              <HandHeart className="h-4 w-4" /> Learn
+            </button>
           </div>
         </div>
       </div>
 
-        {/* Active chats strip */}
-        {activeMatches.length > 0 && (
-          <div className="mt-3 flex items-center gap-2 overflow-x-auto no-scrollbar">
-            <span className="shrink-0 text-xs font-semibold uppercase tracking-wider text-charcoal-700/50">Active exchanges</span>
-            {activeMatches.map((m) => {
-              const otherId = m.provider_id === user?.id ? m.receiver_id : m.provider_id
-              const other = authorMap.get(otherId)
-              if (!other) return null
-              const post = posts.find((p: any) => p.id === m.post_id) as FoodPost | undefined
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => post && openChatForPost(post)}
-                  className="flex shrink-0 items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm shadow-card ring-1 ring-cream-200 transition-all hover:ring-amber-400"
-                >
-                  <span>{other.avatar_emoji}</span>
-                  <span className="font-medium text-charcoal-800">{other.full_name ?? other.display_name}</span>
-                  <span className="text-amber-700">🪙{m.credits}</span>
-                </button>
-              )
-            })}
-          </div>
-        )}
-
-      {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto bg-charcoal-950 px-4 py-5 sm:px-6">
-        {/* Dual CTAs */}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <DualCTA
-            kind="offer"
-            onClick={() => setFormKind('offer')}
-            title="💡 Share Knowledge (Teach)"
-            subtitle="Offer a study session, explain a concept, or guide a peer"
-            icon={<Utensils className="h-6 w-6" />}
-            tone="olive"
-          />
-          <DualCTA
-            kind="request"
-            onClick={() => setFormKind('request')}
-            title="🙋‍♂️ Ask for Help (Learn)"
-            subtitle="Request tutoring, homework support, or exam coaching"
-            icon={<HandHeart className="h-6 w-6" />}
-            tone="amber"
-          />
-        </div>
-
-        {/* Feed controls */}
-        <div className="mt-6 space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 rounded-2xl bg-charcoal-900/80 p-1 shadow-card">
-              {([
-                ['all', 'All'],
-                ['requests', 'Looking for Tutors (Requests)'],
-                ['offers', 'Available Tutors (Offers)'],
-                ['mine', 'Mine'],
-              ] as [Filter, string][]).map(([f, label]) => (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition-all ${
-                    filter === f ? 'bg-amber-500 text-charcoal-950 shadow-warm' : 'text-cream-200/80 hover:bg-charcoal-800'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="relative flex-1 min-w-[180px]">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-cream-200/60" />
-              <input
-                className="input bg-charcoal-900/90 text-cream-50 placeholder:!text-cream-300"
-                placeholder="Search topics…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-2 overflow-x-auto rounded-3xl bg-charcoal-900/80 p-3 no-scrollbar">
-            <button
-              onClick={() => setSubjectFilter('all')}
-              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${subjectFilter === 'all' ? 'bg-amber-500 text-charcoal-950' : 'text-cream-200/80 hover:bg-charcoal-800'}`}
-            >
-              All Subjects
-            </button>
-            {SUBJECTS.map((subject) => (
-              <button
-                key={subject}
-                onClick={() => setSubjectFilter(subject)}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${subjectFilter === subject ? 'bg-olive-500 text-charcoal-950' : 'text-cream-200/80 hover:bg-charcoal-800'}`}
-              >
-                {subject}
+      {/* Feed controls */}
+      <div className="border-b border-white/6 px-4 py-3 sm:px-6"
+        style={{ background: 'rgba(32,30,26,0.6)', borderColor: 'rgba(255,255,255,0.06)' }}>
+        <div className="flex flex-wrap gap-3">
+          {/* Filter tabs */}
+          <div className="flex items-center gap-1 rounded-xl bg-white/5 p-1">
+            {([
+              ['all', 'All'],
+              ['offers', 'Teaching'],
+              ['requests', 'Learning'],
+              ['mine', 'Mine'],
+            ] as [Filter, string][]).map(([f, label]) => (
+              <button key={f} onClick={() => setFilter(f)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                  filter === f ? 'bg-amber-500 text-charcoal-950' : 'text-cream-200/60 hover:text-cream-50'
+                }`}>
+                {label}
               </button>
             ))}
           </div>
+
+          {/* Search */}
+          <div className="relative min-w-[180px] flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-cream-200/40" />
+            <input className="input pl-10 text-sm py-2" placeholder="Search topics…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          </div>
         </div>
 
-        {/* Feed */}
-        <div className="mt-4">
-          {loading ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="card animate-pulse overflow-hidden">
-                  <div className="aspect-[4/3] bg-cream-200" />
-                  <div className="space-y-2 p-4">
-                    <div className="h-3 w-20 rounded bg-cream-200" />
-                    <div className="h-4 w-3/4 rounded bg-cream-200" />
-                    <div className="h-3 w-1/2 rounded bg-cream-200" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : filtered.length === 0 ? (
-            <EmptyState
-              icon={<ChefHat className="h-7 w-7" />}
-              title={query || filter !== 'all' ? 'Nothing matches that filter' : 'The table is quiet…'}
-              subtitle={query || filter !== 'all'
-                ? 'Try a different filter or search.'
-                : 'Be the first to share a dish or request a bite!'}
-            />
-          ) : (
-            <motion.div layout className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <AnimatePresence>
-                {filtered.map((p: any) => (
-                  <PostCard
-                    key={p.id}
-                    post={p as FoodPost}
-                    author={p.author as Profile}
-                    onOpen={() => setDetailPost(p as FoodPost)}
-                  />
-                ))}
-              </AnimatePresence>
-            </motion.div>
-          )}
+        {/* Subject chips */}
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+          {['all', ...SUBJECTS].map((s) => (
+            <button key={s} onClick={() => setSubjectFilter(s)}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                subjectFilter === s ? 'bg-amber-500 text-charcoal-950' : 'bg-white/5 text-cream-200/60 hover:bg-white/10'
+              }`}>
+              {s === 'all' ? '✦ All Subjects' : s}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Mobile FAB */}
-      <div className="pointer-events-none fixed bottom-5 right-5 z-20 flex flex-col gap-2 md:hidden">
-        <button onClick={() => setFormKind('offer')} className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-olive-500 text-white shadow-warm active:scale-95">
-          <Utensils className="h-6 w-6" />
-        </button>
-        <button onClick={() => setFormKind('request')} className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500 text-white shadow-warm active:scale-95">
-          <HandHeart className="h-6 w-6" />
-        </button>
+      {/* Feed */}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-amber-500" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon={<span className="text-3xl">📚</span>}
+            title="No posts here"
+            subtitle={filter === 'all' ? 'Be the first to post in this table!' : 'Try a different filter.'}
+          />
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <AnimatePresence mode="popLayout">
+              {filtered.map((post) => {
+                const author = post.author ?? authorMap.get(post.user_id)
+                if (!author) return null
+                const myMatch = matches.find((m) => m.post_id === post.id)
+                const hasChat  = !!myMatch && (myMatch.status === 'ongoing' || myMatch.status === 'pending')
+
+                return (
+                  <div key={post.id} className="relative">
+                    <PostCard
+                      post={post}
+                      author={author}
+                      myUserId={user?.id ?? ''}
+                      onOpen={() => setDetailPost(post)}
+                    />
+                    {hasChat && (
+                      <button
+                        onClick={() => openChatForPost(post)}
+                        className="absolute bottom-3 right-3 rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-bold text-charcoal-950 shadow-warm hover:bg-amber-400 transition"
+                      >
+                        💬 Chat
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </AnimatePresence>
+          </div>
+        )}
       </div>
 
       {/* Modals */}
       <PostFormModal
-        open={formKind !== null}
-        kind={formKind ?? 'offer'}
-        tableId={table.id}
-        memberCredits={table.member.credits}
+        kind={formKind}
+        table={table}
         onClose={() => setFormKind(null)}
-        onCreated={() => { setFormKind(null); refresh(); onTablesChanged() }}
+        onCreated={() => { setFormKind(null); refresh() }}
       />
+
       <PostDetailModal
         open={!!detailPost}
         post={detailPost}
-        author={detailPost ? authorMap.get(detailPost.user_id) ?? null : null}
+        author={detailPost ? (detailPost.author ?? authorMap.get(detailPost.user_id) ?? null) : null}
         myCredits={table.member.credits}
         onClose={() => setDetailPost(null)}
         onAccept={handleAccept}
         onDelete={() => { setDetailPost(null); refresh() }}
       />
+
       <ChatModal
         open={!!chat}
-        match={chat?.match ?? null}
         post={chat?.post ?? null}
         other={chat?.other ?? null}
+        match={chat?.match ?? null}
         onClose={() => setChat(null)}
-        onSettled={() => { refresh(); refreshMatches(); onTablesChanged() }}
+        onSettled={() => { setChat(null); refresh(); refreshMatches(); onTablesChanged() }}
       />
     </div>
-  )
-}
-
-function DualCTA({
-  kind, onClick, title, subtitle, icon, tone,
-}: {
-  kind: PostType
-  onClick: () => void
-  title: string
-  subtitle: string
-  icon: React.ReactNode
-  tone: 'olive' | 'amber'
-}) {
-  return (
-    <motion.button
-      whileHover={{ y: -2 }}
-      whileTap={{ scale: 0.98 }}
-      onClick={onClick}
-      className={`group relative overflow-hidden rounded-[2rem] p-6 text-left shadow-card transition-all focus:outline-none focus:ring-2 focus:ring-amber-300 ${
-        tone === 'olive'
-          ? 'bg-gradient-to-br from-olive-500 via-olive-600 to-charcoal-900 text-cream-50'
-          : 'bg-gradient-to-br from-amber-500 via-amber-600 to-charcoal-900 text-cream-50'
-      }`}
-    >
-      <div className="relative z-10 flex items-start gap-4">
-        <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-white/15 text-2xl shadow-inner">
-          {icon}
-        </div>
-        <div className="flex-1">
-          <div className="font-display text-xl font-semibold">{title}</div>
-          <p className="mt-1 text-sm text-cream-200/90">{subtitle}</p>
-        </div>
-        <div className="flex h-11 w-11 items-center justify-center rounded-3xl bg-white/10 text-lg text-cream-200 transition-transform group-hover:scale-105">
-          +
-        </div>
-      </div>
-      <div className="absolute -right-8 -bottom-8 h-28 w-28 rounded-full bg-white/10 blur-xl" />
-    </motion.button>
   )
 }

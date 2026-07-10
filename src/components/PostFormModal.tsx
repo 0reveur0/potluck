@@ -1,165 +1,110 @@
-import { HandHeart, Loader as Loader2, Sparkles, Utensils } from 'lucide-react'
+'use client'
+import { Loader2 } from 'lucide-react'
 import { useState } from 'react'
-import { supabase, type PostType, type StudySubject } from '../lib/supabase'
-import { useAuth } from '../lib/auth'
+import { api } from '../lib/api'
+import type { PostType, StudyPost, TableWithMember } from '../lib/types'
 import { Modal } from '../lib/ui'
 import { useToast } from '../lib/toast'
 
-const SUBJECTS: { id: StudySubject; label: string }[] = [
-  { id: 'Math', label: 'Math' },
-  { id: 'Physics', label: 'Physics' },
-  { id: 'Chemistry', label: 'Chemistry' },
-  { id: 'English', label: 'English' },
-  { id: 'Programming', label: 'Programming' },
-  { id: 'Other', label: 'Other' },
-]
+const SUBJECTS = ['Math', 'Physics', 'Chemistry', 'English', 'Programming', 'Other']
 
 export function PostFormModal({
-  open,
   kind,
-  tableId,
-  memberCredits,
+  table,
   onClose,
   onCreated,
 }: {
-  open: boolean
-  kind: PostType
-  tableId: number | null
-  memberCredits: number
+  kind: PostType | null
+  table: TableWithMember
   onClose: () => void
-  onCreated: () => void
+  onCreated: (post: StudyPost) => void
 }) {
-  const { user } = useAuth()
   const { push } = useToast()
-  const [subject, setSubject] = useState<StudySubject>('Math')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [credits, setCredits] = useState(10)
+  const [subject, setSubject] = useState('Math')
+  const [creditPrice, setCreditPrice] = useState(10)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
-  const isOffer = kind === 'offer'
-  const verb = isOffer ? 'Share' : 'Request'
-  const noun = isOffer ? 'a Dish' : 'a Bite'
+  const isOffer = kind === 'offer_to_teach'
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!user || !tableId) return
     setErr(null)
-    if (subject.trim().length === 0) { setErr('Pick a subject.'); return }
-    if (title.trim().length < 3) { setErr('Add a short title.'); return }
-    if (description.trim().length < 10) { setErr('Add a bit more detail so tutors can help.'); return }
-    if (!isOffer && credits <= 0) { setErr('Set a credit bounty for your request.'); return }
-    if (!isOffer && credits > memberCredits) { setErr('You do not have enough study credits for this request.'); return }
     setBusy(true)
-    const { error } = await supabase.from('food_posts').insert({
-      table_id: tableId,
-      user_id: user.id,
-      type: kind,
-      title: title.trim(),
-      description: description.trim(),
-      subject,
-      food_type: 'other',
-      credit_price: isOffer ? 0 : credits,
-      image_url: null,
-      status: 'open',
-    })
-    if (error) { setErr(error.message); setBusy(false); return }
-    setTitle(''); setDescription(''); setCredits(10)
-    push('success', isOffer ? 'Posted to your table! 🎓' : 'Request posted! 🙌')
-    onCreated()
-    setBusy(false)
+    try {
+      const post = await api.post<StudyPost>('/api/posts/create', {
+        table_id: table.id,
+        type: kind,
+        title: title.trim(),
+        description: description.trim(),
+        subject,
+        credit_price: creditPrice,
+      })
+      push('success', isOffer ? 'Teaching offer posted! 📖' : 'Learning request posted! 🙋')
+      setTitle('')
+      setDescription('')
+      setCreditPrice(10)
+      onCreated(post)
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={`${verb} ${noun}`} maxWidth="max-w-lg">
-      <div className="space-y-4">
-        {/* Kind banner */}
-        <div className={`flex items-center gap-3 rounded-2xl px-4 py-3 ${isOffer ? 'bg-olive-400/15 text-olive-700' : 'bg-amber-400/15 text-amber-700'}`}>
-          {isOffer ? <Utensils className="h-5 w-5" /> : <HandHeart className="h-5 w-5" />}
-          <p className="text-sm font-medium">
-            {isOffer
-              ? 'Offer a study session, explain a concept, or guide a peer through a tough topic.'
-              : 'Ask for help with homework, exam prep, or a concept you are stuck on.'}
-          </p>
+    <Modal
+      open={kind !== null}
+      onClose={onClose}
+      title={isOffer ? '📖 Offer to Teach' : '🙋 Request to Learn'}
+    >
+      <form onSubmit={submit} className="space-y-5">
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-cream-200/70">Title <span className="text-amber-400">*</span></label>
+          <input className="input" placeholder={isOffer ? 'e.g. "I can teach Calculus Derivatives"' : 'e.g. "Need help with Organic Chemistry"'} value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={120} />
         </div>
 
-        {/* Subject selector */}
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-charcoal-800">Choose a subject</label>
-          <div className="flex flex-wrap gap-2">
-            {SUBJECTS.map((item) => (
-              <button
-                type="button"
-                key={item.id}
-                onClick={() => setSubject(item.id)}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  subject === item.id
-                    ? 'bg-amber-500 text-charcoal-950'
-                    : 'bg-white/10 text-cream-100 hover:bg-white/20'
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
+          <label className="mb-1.5 block text-sm font-medium text-cream-200/70">Description <span className="text-cream-200/30">(optional)</span></label>
+          <textarea className="input resize-none" rows={3} placeholder="Add more details about what you need or can offer…" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={800} />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-cream-200/70">Subject</label>
+            <select className="input" value={subject} onChange={(e) => setSubject(e.target.value)}>
+              {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-cream-200/70">
+              {isOffer ? 'Earn (credits)' : 'Bounty (credits)'}
+            </label>
+            <input className="input" type="number" min={1} max={500} value={creditPrice}
+              onChange={(e) => setCreditPrice(Math.max(1, Math.min(500, parseInt(e.target.value) || 1)))} />
           </div>
         </div>
 
-        {/* Title */}
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-charcoal-800">Title</label>
-          <input
-            className="input"
-            placeholder={isOffer ? 'Lead a Calculus review session' : 'Need help with Calculus integrals'}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            maxLength={80}
-            autoFocus
-          />
-        </div>
-
-        {/* Description */}
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-charcoal-800">Details</label>
-          <textarea
-            className="input min-h-[90px] resize-none"
-            placeholder={isOffer ? 'Walk learners through limits, derivatives, and exam-style problems.' : 'Exam is next week, struggling with integration by parts.'}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            maxLength={400}
-          />
-        </div>
-
-
-        {/* Credits (requests) */}
+        {/* Credit balance info */}
         {!isOffer && (
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-charcoal-800">Credit bounty</label>
-            <div className="flex items-center gap-3">
-              <input
-                type="range"
-                min={1}
-                max={50}
-                value={credits}
-                onChange={(e) => setCredits(Number(e.target.value))}
-                className="flex-1 accent-amber-500"
-              />
-              <div className="flex w-20 items-center justify-center gap-1 rounded-2xl bg-amber-400/15 px-3 py-2 font-bold text-amber-700">
-                🪙 {credits}
-              </div>
-            </div>
-            <p className="mt-1.5 text-xs text-charcoal-700/60">Frozen in escrow when someone accepts; released on dual confirmation.</p>
-            <p className="mt-2 text-xs text-charcoal-700/70">Available: {memberCredits} credits</p>
+          <div className="rounded-xl bg-amber-500/8 border border-amber-500/20 px-4 py-3 text-sm text-amber-300/80"
+            style={{ background: 'rgba(245,158,11,0.06)' }}>
+            Your balance in this table: <strong className="text-amber-300">{table.member.credits} credits</strong>
+            {table.member.credits < creditPrice && (
+              <span className="ml-2 text-red-400">(insufficient)</span>
+            )}
           </div>
         )}
 
-        {err && <div className="rounded-2xl bg-danger/10 px-4 py-2.5 text-sm font-medium text-danger">{err}</div>}
+        {err && <p className="text-sm text-red-400">{err}</p>}
 
-        <button onClick={submit} disabled={busy} className="btn-primary w-full">
-          {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          {isOffer ? 'Create offer' : 'Create request'}
+        <button type="submit" disabled={busy || !title.trim() || (!isOffer && table.member.credits < creditPrice)}
+          className="btn-primary w-full py-3 gap-2">
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : isOffer ? '📖 Post Teaching Offer' : '🙋 Post Learning Request'}
         </button>
-      </div>
+      </form>
     </Modal>
   )
 }

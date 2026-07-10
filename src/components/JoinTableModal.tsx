@@ -1,70 +1,55 @@
-import { motion } from 'framer-motion'
-import { KeyRound, Loader as Loader2 } from 'lucide-react'
+'use client'
+import { Loader2 } from 'lucide-react'
 import { useState } from 'react'
-import { supabase, type PotluckTable } from '../lib/supabase'
-import { useAuth } from '../lib/auth'
+import { api } from '../lib/api'
+import type { TableWithMember } from '../lib/types'
 import { Modal } from '../lib/ui'
-import { useToast } from '../lib/toast'
 
-export function JoinTableModal({ open, onClose, onJoined }: { open: boolean; onClose: () => void; onJoined: (t: PotluckTable) => void }) {
-  const { user } = useAuth()
-  const { push } = useToast()
+export function JoinTableModal({
+  open,
+  onClose,
+  onJoined,
+}: {
+  open: boolean
+  onClose: () => void
+  onJoined: (table: TableWithMember) => void
+}) {
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!user) return
     setErr(null)
     setBusy(true)
-    const clean = code.trim().toUpperCase()
-    if (clean.length < 4) {
-      setErr('Enter a valid join code.')
+    try {
+      const table = await api.post<TableWithMember>('/api/clans/join', { join_code: code.trim().toUpperCase() })
+      setCode('')
+      onJoined(table)
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
       setBusy(false)
-      return
     }
-    // join_table() looks up the table by code and inserts the membership row
-    // server-side (SECURITY DEFINER), returning the table row.
-    const { data: table, error } = await supabase.rpc('join_table', { p_code: clean })
-    if (error) {
-      setErr(error.message)
-      setBusy(false)
-      return
-    }
-    setCode('')
-    onJoined(table as unknown as PotluckTable)
-    setBusy(false)
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Join a Potluck Table" maxWidth="max-w-md">
-      <div className="flex flex-col items-center gap-4 text-center">
-        <motion.div
-          initial={{ scale: 0.8, rotate: -10 }}
-          animate={{ scale: 1, rotate: 0 }}
-          className="flex h-16 w-16 items-center justify-center rounded-3xl bg-amber-400/20 text-amber-600"
-        >
-          <KeyRound className="h-8 w-8" />
-        </motion.div>
-        <p className="text-sm text-charcoal-700/80">
-          Enter the alphanumeric join code a host shared with you (e.g. <span className="font-mono font-bold text-amber-700">TASTY77</span>).
-          You'll start with 50 Food Credits at this table.
-        </p>
-      </div>
-      <form onSubmit={submit} className="mt-5 space-y-3">
+    <Modal open={open} onClose={onClose} title="Join a Potluck Table">
+      <p className="text-sm text-cream-200/60 mb-5">
+        Enter the 6-character code your clan admin shared with you.
+      </p>
+      <form onSubmit={submit} className="space-y-4">
         <input
-          className="input text-center font-mono text-lg font-bold uppercase tracking-[0.3em]"
-          placeholder="TASTY77"
+          className="input text-center font-mono text-2xl uppercase tracking-[0.3em]"
+          placeholder="ABC123"
           value={code}
-          onChange={(e) => setCode(e.target.value.toUpperCase())}
-          maxLength={10}
-          autoFocus
+          onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 6))}
+          maxLength={6}
+          required
         />
-        {err && <div className="rounded-2xl bg-danger/10 px-4 py-2.5 text-sm font-medium text-danger">{err}</div>}
-        <button type="submit" disabled={busy} className="btn-primary w-full">
-          {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-          Take a seat
+        {err && <p className="text-sm text-red-400">{err}</p>}
+        <button type="submit" disabled={busy || code.length < 6} className="btn-primary w-full py-3">
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Join Table'}
         </button>
       </form>
     </Modal>

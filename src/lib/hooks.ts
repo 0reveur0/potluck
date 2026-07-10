@@ -1,116 +1,149 @@
-import { useEffect, useState } from 'react'
-import { supabase, type PotluckTable, type TableMember, type FoodPost, type Profile } from './supabase'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { api } from './api'
 import { useAuth } from './auth'
+import type { Match, StudyPost, TableWithMember } from './types'
 
-export type TableWithMember = PotluckTable & { member: TableMember }
+// ── useJoinedTables ───────────────────────────────────────────────────────────
+
+export type { TableWithMember }
 
 export function useJoinedTables() {
   const { user } = useAuth()
   const [tables, setTables] = useState<TableWithMember[]>([])
   const [loading, setLoading] = useState(true)
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     if (!user) { setTables([]); setLoading(false); return }
-    const { data, error } = await supabase
-      .from('table_members')
-      .select('id, table_id, user_id, role, credits, joined_at, tables!inner(id, name, join_code, emoji, description, created_by, created_at)')
-      .eq('user_id', user.id)
-      .order('joined_at', { ascending: false })
-    if (error) {
-      // eslint-disable-next-line no-console
-      console.error('joined tables', error)
+    try {
+      const data = await api.get<TableWithMember[]>('/api/clans')
+      setTables(data)
+    } catch {
+      setTables([])
+    } finally {
       setLoading(false)
-      return
     }
-    const rows = (data ?? []).map((r: any) => ({
-      ...r.tables,
-      member: { id: r.id, table_id: r.table_id, user_id: r.user_id, role: r.role, credits: r.credits, joined_at: r.joined_at },
-    }))
-    setTables(rows)
-    setLoading(false)
-  }
+  }, [user])
 
   useEffect(() => {
     refresh()
     if (!user) return
-    const channel = supabase
-      .channel(`members-${user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'table_members', filter: `user_id=eq.${user.id}` }, () => refresh())
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id])
+    // Poll every 8s for new clan memberships
+    const id = setInterval(refresh, 8_000)
+    return () => clearInterval(id)
+  }, [user, refresh])
 
   return { tables, loading, refresh }
 }
 
+// ── useTablePosts ─────────────────────────────────────────────────────────────
+
 export function useTablePosts(tableId: number | null) {
-  const [posts, setPosts] = useState<(FoodPost & { author: Profile })[]>([])
+  const { user } = useAuth()
+  const [posts, setPosts] = useState<StudyPost[]>([])
   const [loading, setLoading] = useState(true)
 
-  const refresh = async () => {
-    if (!tableId) { setPosts([]); setLoading(false); return }
-    const { data, error } = await supabase
-      .from('food_posts')
-      .select('*, author:profiles!food_posts_user_id_fkey(id, full_name, avatar_url, avatar_emoji, is_super_admin)')
-      .eq('table_id', tableId)
-      .order('created_at', { ascending: false })
-    if (error) {
-      // eslint-disable-next-line no-console
-      console.error('posts', error)
+  const refresh = useCallback(async () => {
+    if (!user || !tableId) { setPosts([]); setLoading(false); return }
+    try {
+      const data = await api.get<StudyPost[]>(`/api/posts?table_id=${tableId}`)
+      setPosts(data)
+    } catch {
+      setPosts([])
+    } finally {
       setLoading(false)
-      return
     }
-    setPosts((data ?? []) as any)
-    setLoading(false)
-  }
+  }, [user, tableId])
 
   useEffect(() => {
+    setLoading(true)
     refresh()
-    if (!tableId) return
-    const channel = supabase
-      .channel(`posts-${tableId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'food_posts', filter: `table_id=eq.${tableId}` }, () => refresh())
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tableId])
+    if (!user || !tableId) return
+    // Poll every 4s for new posts
+    const id = setInterval(refresh, 4_000)
+    return () => clearInterval(id)
+  }, [user, tableId, refresh])
 
   return { posts, loading, refresh }
 }
 
+// ── useMyMatches ──────────────────────────────────────────────────────────────
+
 export function useMyMatches() {
   const { user } = useAuth()
-  const [matches, setMatches] = useState<any[]>([])
+  const [matches, setMatches] = useState<Match[]>([])
   const [loading, setLoading] = useState(true)
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     if (!user) { setMatches([]); setLoading(false); return }
-    const { data, error } = await supabase
-      .from('matches')
-      .select('*, post:food_posts(*), other:profiles!matches_provider_id_fkey(id, full_name, avatar_url, avatar_emoji)')
-      .or(`provider_id.eq.${user.id},receiver_id.eq.${user.id}`)
-      .order('created_at', { ascending: false })
-    if (error) {
-      // eslint-disable-next-line no-console
-      console.error('matches', error)
+    try {
+      const data = await api.get<Match[]>('/api/matches')
+      setMatches(data)
+    } catch {
+      setMatches([])
+    } finally {
       setLoading(false)
-      return
     }
-    setMatches(data ?? [])
-    setLoading(false)
-  }
+  }, [user])
 
   useEffect(() => {
     refresh()
     if (!user) return
-    const channel = supabase
-      .channel(`matches-${user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => refresh())
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id])
+    // Poll every 4s for match status updates
+    const id = setInterval(refresh, 4_000)
+    return () => clearInterval(id)
+  }, [user, refresh])
 
   return { matches, loading, refresh }
+}
+
+// ── useChatPoll ───────────────────────────────────────────────────────────────
+// 2-second short-polling for messages + match state inside ChatModal.
+
+export function useChatPoll(matchId: number | null, open: boolean) {
+  const [messages, setMessages] = useState<import('./types').Message[]>([])
+  const [match, setMatch] = useState<Match | null>(null)
+  const [loading, setLoading] = useState(true)
+  const lastIdRef = useRef(0)
+
+  const poll = useCallback(async () => {
+    if (!matchId) return
+    try {
+      const data = await api.get<{ messages: import('./types').Message[]; match: Match }>(
+        `/api/chat/${matchId}/poll?since=${lastIdRef.current}`
+      )
+      if (data.messages.length > 0) {
+        const newMax = Math.max(...data.messages.map((m) => m.id))
+        lastIdRef.current = newMax
+        setMessages((prev) => {
+          // Deduplicate by id
+          const ids = new Set(prev.map((m) => m.id))
+          const fresh = data.messages.filter((m) => !ids.has(m.id))
+          return fresh.length ? [...prev, ...fresh] : prev
+        })
+      }
+      setMatch(data.match)
+      setLoading(false)
+    } catch {
+      // silently ignore poll errors
+    }
+  }, [matchId])
+
+  // Reset when match changes or modal opens
+  useEffect(() => {
+    if (!open || !matchId) return
+    lastIdRef.current = 0
+    setMessages([])
+    setMatch(null)
+    setLoading(true)
+    poll() // immediate first fetch
+  }, [matchId, open, poll])
+
+  // Interval polling
+  useEffect(() => {
+    if (!open || !matchId) return
+    const id = setInterval(poll, 2_000)
+    return () => clearInterval(id)
+  }, [open, matchId, poll])
+
+  return { messages, match, loading }
 }

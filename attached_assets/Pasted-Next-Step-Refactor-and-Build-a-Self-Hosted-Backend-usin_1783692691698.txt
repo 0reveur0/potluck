@@ -1,0 +1,27 @@
+Next Step: Refactor and Build a Self-Hosted Backend using Next.js Route Handlers and Local PostgreSQL
+
+Please completely remove the external Supabase/Firebase backend dependency. We are building our own custom, self-hosted backend directly inside Next.js using App Router Route Handlers (`app/api/...`) and a direct connection to a PostgreSQL database (using standard pooling or an ORM like Prisma).
+
+1. Database Connection & Schema Setup:
+   - Create a localized backend database initialization script or Prisma schema that mirrors our core architecture: `tables`, `profiles`, `table_members` (with isolated credits), `study_posts`, `matches`, and `messages`.
+   - Enforce database-level transactions (ACID) for credit transfers to avoid data race conditions.
+
+2. Build Next.js API Routes (`app/api/`):
+   - `POST /api/clans/create`: (Super Admin only) Creates a new Potluck Table/Clan with a custom server-generated 6-character alphanumeric `join_code`.
+   - `POST /api/clans/join`: Validates the `join_code`. If valid, hooks the authenticated user into the `table_members` bridge table and seeds them with 50 isolated Study Credits for that specific Clan.
+   - `GET /api/posts`: Server-side filters posts based on the `table_id` the user is actively viewing.
+   - `POST /api/posts/create`: Validates user inputs. If creating a request, validates server-side that the user's current credit balance inside `table_members` is greater than or equal to the bounty price.
+
+3. Atomic Escrow Transaction API (`POST /api/matches/complete`):
+   - Write a secure custom backend controller executing a single database transaction:
+     1. Lock rows for updating.
+     2. Deduct credits from the learner's specific `table_members` balance.
+     3. Add credits to the teacher's specific `table_members` balance.
+     4. Update match status to 'completed'.
+   - If any step fails, rollback the entire operation immediately.
+
+4. Real-time Messaging Strategy:
+   - Since we are self-hosting, implement standard WebSockets (using a lightweight `ws` setup if custom server) or Server-Sent Events (SSE) via Next.js Route Handlers to stream messages in real-time inside the `/api/chat/messages` endpoint.
+   - Alternatively, implement an optimized local polling route (`/api/chat/poll`) that fetches new messages every 2 seconds as a robust fallback.
+
+Please generate the complete server-side files, database queries, and rewrite the frontend fetch functions to route directly to our new internal `/api` backend.

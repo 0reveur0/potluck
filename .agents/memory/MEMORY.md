@@ -1,0 +1,2 @@
+- [Stack migration](stack-migration.md) — Vite+React+Supabase → Next.js 14 App Router + Replit PostgreSQL + iron-session; key decisions and gotchas.
+- [Admin auth pattern](admin-auth.md) — First registered user auto-promoted to super-admin; session via iron-session; requireAdmin() throws Response for route handler catch blocks.
