@@ -1,0 +1,29 @@
+System Context Initialization: Project "Potluck"
+
+We are building a custom, full-stack, non-monetary peer-to-peer tutoring and knowledge-sharing platform called "Potluck" (the metaphor is a "potluck of knowledge" where students bring skills to share inside private clans). 
+
+The project has recently migrated to a completely SELF-HOSTED full-stack architecture inside Next.js. We DO NOT use external backends like Supabase or Firebase anymore.
+
+Here is the current operational architecture and stack you need to follow:
+
+1. Technical Stack:
+   - Frontend: Next.js (App Router), Tailwind CSS, Framer Motion, Lucide Icons.
+   - Backend: Internal Next.js Route Handlers (`app/api/...`).
+   - Database: Local/Self-hosted PostgreSQL (connected via raw SQL or Prisma).
+
+2. Core Data Architecture & Logic:
+   - "Potluck Tables" (Clans): Private groups created only by the Super Admin. Each has a unique, server-generated alphanumeric `join_code`.
+   - "Profiles": Global user accounts.
+   - "Table Members": A bridge table handling multi-clan access. IMPORTANT: Study Credits are isolated per clan! A user gets 50 starting credits inside a specific clan upon entering a valid `join_code`. They cannot spend credits from Clan A inside Clan B.
+   - "Study Posts": Entries posted inside a specific clan. `type` must strictly be ('offer_to_teach', 'request_to_learn'). Filtered server-side by `table_id`.
+   - "Matches & Escrow": When a post is claimed, a match is created, and the `credit_price` is locked in escrow. When both parties confirm completion, an atomic database transaction transfers the credits from the learner's balance to the teacher's balance inside `table_members`.
+   - "Chat": Real-time messaging internal to an active match (handled via Next.js SSE / WebSockets or optimized 2-second short polling).
+
+3. Design & Theme System:
+   - Premium cozy-warm, high-contrast dark theme (warm ambers, rich creams, soft olive greens, deep charcoal background).
+   - Clean Glassmorphism cards with smooth Framer Motion animations.
+
+Current Task Strategy:
+You now have the full context of "Potluck". Please acknowledge that you understand this complete architecture, the self-hosted Next.js backend requirement, and the isolated credit system. 
+
+Once acknowledged, please list the existing project file structure we should generate/modify next to complete the Dashboard UI and the Escrow Chat logic.
