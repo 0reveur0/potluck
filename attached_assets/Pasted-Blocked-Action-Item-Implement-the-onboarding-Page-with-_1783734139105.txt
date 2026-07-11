@@ -1,0 +1,24 @@
+Blocked Action Item: Implement the `/onboarding` Page with Existing Self-Hosted Logic
+
+We are currently blocked and need to build ONLY the onboarding flow. Do NOT rewrite or regenerate any existing database tables or dashboard features that already exist in the app. Focus strictly on connecting the onboarding UI to our custom internal API.
+
+1. Review/Create the Backend Route Handler (`app/api/clans/join/route.ts`):
+   - Method: POST
+   - Payload: Expected `{ join_code: string }` from the client.
+   - Server Logic:
+     - Get the current user's authenticated session ID.
+     - Query the existing local PostgreSQL `tables` table to find a row matching the `join_code`. If not found, return `404` ("Invalid Table Code").
+     - Check if the user is already in `table_members` for this table to prevent duplicates.
+     - If not, execute a database transaction to insert them into `table_members` with `role: 'member'` and `credits: 50` (Seed points specifically isolated for this clan).
+     - Return `200 OK` with the `table_id`.
+
+2. Build the Onboarding UI Component (`app/onboarding/page.tsx`):
+   - Style: High-contrast, cozy-warm dark glassmorphism theme (deep charcoal background, soft amber typography/glow). It must be a distraction-free centered card layout.
+   - Form Inputs: 
+     - A stylized, uppercase-enforced monospaced text input field for the 6-character alphanumeric code.
+     - A high-contrast warm amber "Join Table" button animated with Framer Motion (hover/click micro-interactions).
+   - Error & Success States:
+     - On API 404 (Invalid code): Do not crash. Trigger a Framer Motion shake animation on the input field and display a soft crimson warning text below it.
+     - On API 200 (Success): Show a successful toast notification ("Joined successfully! +50 Credits granted.") and smoothly redirect the user to the active clan workspace at `/dashboard/[table_id]`.
+
+Please output only the code files required for this specific onboarding milestone, ensuring it hooks directly into our current Next.js Route Handler and PostgreSQL setup.

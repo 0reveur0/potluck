@@ -1,0 +1,22 @@
+Next Step: Final Project Optimization, Production Build Preparation, and Environment Configuration
+
+Please perform a comprehensive review, optimization, and packaging of the entire "Potluck" codebase for production readiness. Since we are hosting our own backend and PostgreSQL database, we need to ensure security, efficiency, and seamless deployment.
+
+1. Environment Variables Configuration (`.env.example`):
+   - Generate a clean documentation template for all necessary server-side environment variables:
+     - `DATABASE_URL`: Connection string for the production PostgreSQL instance.
+     - `NEXTAUTH_SECRET` / `JWT_SECRET`: For securing internal user session tokens.
+     - `NODE_ENV`: To separate development logs from production optimizations.
+
+2. Database Connection Optimization & Singletons:
+   - Ensure that the database connection instance (whether using PrismaClient or standard `pg` pools) utilizes a global singleton pattern. This prevents running out of database connection slots during Next.js hot-reloads in development or scaling in a serverless production environment.
+
+3. Frontend Caching & Revalidation:
+   - Optimize the client-side data fetching across the Dashboard Feed, Sidebar, and Profile Page. Ensure that switching between different Potluck Tables (via the sidebar) cancels pending old fetch requests and renders immediate loading skeletons to eliminate UI layout shifts.
+   - Implement basic route handler response headers or React caching where appropriate to prevent unnecessary database queries on unchanging historical data (like the past transaction ledger).
+
+4. Production Readiness Check:
+   - Clean up any legacy code comments or unused boilerplate components leftover from the project setup phase.
+   - Verify that all dynamic routes (e.g., `/dashboard/[table_id]` and `/api/clans/[table_id]/posts`) correctly handle edge cases, such as passing a non-existent or malicious group ID, and gracefully return a custom 404 or 403 error page matching our cozy-warm design system.
+
+Please generate the necessary configuration files, update the database client connection files, and provide a clear, step-by-step terminal script guide on how to build and launch the production application.
