@@ -1,0 +1,24 @@
+Next Step: Implement Post-Session Review System and Global Reputation Rating
+
+Please build the peer-review and rating engine that triggers instantly after a study session is marked as completed. This closes the feedback loop and rewards active knowledge-sharers with public reputation.
+
+1. Create Backend API Route (`POST /api/reviews/create`):
+   - Logic Requirements:
+     - Expect a JSON payload containing `{ match_id, rating (1-5), comment: string }`.
+     - Verify server-side that the authenticated user was indeed the learner/receiver in that specific `match_id` and that the match status is strictly 'completed'.
+     - Check if a review already exists for this `match_id` to prevent double-voting.
+     - Execute a database transaction:
+       - Insert the review record into a new or existing `reviews` table.
+       - Calculate the new average rating for the target teacher/tutor.
+       - Update the teacher's profile row in the `profiles` table with their new updated `average_rating` and increment their `total_reviews` count.
+
+2. Animated Post-Session Review Modal UI:
+   - Placement: Inside the chat room (`app/dashboard/[table_id]/chat/[match_id]/page.tsx`), when the match status flips to 'completed', replace the active chat window with a beautifully animated full-screen overlay or modal using Framer Motion.
+   - Design System: Cozy-warm dark glassmorphism theme.
+   - Interactive Elements:
+     - **Interactive Star Rating:** A row of 5 large star icons (using Lucide icons) with smooth hover/click glow effects using Framer Motion. Clicking a star sets the rating value.
+     - **Feedback Textarea:** A clean input box with placeholder text: "Leave a note of appreciation for your peer tutor... What did they help you clear up?"
+     - **Action Buttons:** A primary warm amber "Submit Review & Return to Feed" button and a subtle secondary "Skip" button.
+   - Micro-interactions: On clicking submit, trigger a satisfying explosion of small star particles across the screen before calling `router.push()` to send them back to the active Clan Dashboard feed (`/dashboard/[table_id]`).
+
+Please write the Next.js API Route handler for reviews and wire the animated React modal interface directly into the existing chat-completion screen state.
