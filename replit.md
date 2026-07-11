@@ -13,14 +13,22 @@ A private, credit-based peer-to-peer tutoring and knowledge-sharing platform. St
 ```
 npm run dev    # starts on port 5000
 ```
+The "Start application" workflow runs this automatically.
+
+## Database setup
+This project uses Replit's built-in PostgreSQL (connection string in `DATABASE_URL`, provisioned automatically). The schema lives in `db/schema.sql` — it was written to match what the API routes under `app/api/**` actually query (profiles/tables/table_members/study_posts/matches/messages). Apply it once to a fresh database with:
+```
+psql "$DATABASE_URL" -f db/schema.sql
+```
+Note: `supabase/migrations/*.sql` are leftover from the project's original Supabase-based version and reference `auth.users` / RLS — they don't apply to this Postgres setup and are not run.
 
 ## First-time setup
-1. The first user to register at `POST /api/auth/register` is automatically promoted to Super Admin.
+1. The first user to register at `POST /api/auth/register` is automatically promoted to Super Admin (the database starts empty, so whoever signs up first becomes admin).
 2. Visit `/admin` while logged in as admin to manage Potluck Tables.
 
-## Dev admin credentials
-- Email: `admin@potluck.dev`
-- Password: `potluck123`
+## Secrets
+- `SESSION_SECRET` — required for cookie session signing (already configured).
+- `GEMINI_API_KEY` or `OPENAI_API_KEY` — optional, only needed if you wire up the (currently unused) `/api/generate-quiz` and `/api/generate-roadmap` endpoints into the UI.
 
 ## Key routes
 | Path | Description |

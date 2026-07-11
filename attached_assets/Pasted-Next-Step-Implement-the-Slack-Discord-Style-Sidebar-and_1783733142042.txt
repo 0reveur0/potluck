@@ -1,0 +1,24 @@
+Next Step: Implement the Slack/Discord-Style Sidebar and Dynamic Main Feed Dashboard
+
+Please build the core workspace interface for users who have joined one or more Potluck Tables. The layout must be a split view utilizing our premium cozy-warm dark glassmorphism design system.
+
+1. Create Backend API Routes:
+   - `GET /api/clans/my-clans`: Fetches all tables/groups the current authenticated user belongs to from `table_members` joining `tables`, including the user's isolated `credits` balance for each group.
+   - `GET /api/clans/[table_id]/posts`: Fetches all study posts ('offer_to_teach' and 'request_to_learn') belonging strictly to the specified `table_id` where status is 'open'.
+
+2. Discord-Style Left Sidebar Component (`components/Sidebar.tsx`):
+   - A narrow, fixed left sidebar featuring a vertical stack of circular or rounded-square group icons/avatars representing the user's joined groups.
+   - Features a smooth hover transition where icons round out or change background opacity (similar to Discord).
+   - Display a prominent "[+] Join" button at the bottom of the stack that redirects back to the onboarding code input page.
+   - Actively highlight the currently selected group icon. Clicking a different group must update the route dynamically (e.g., `/dashboard/[table_id]`) without a full page reload.
+
+3. Dynamic Dashboard Content Area (`app/dashboard/[table_id]/page.tsx`):
+   - Header Section: Displays the active Group's name and a beautifully animated credit capsule displaying the user's isolated balance (e.g., "✨ 50 Study Credits available in this table").
+   - Toggle Filters: Horizontal tabs to easily filter between "[All Posts]", "[Looking for Tutors]", and "[Available Tutors]".
+   - Main Feed Grid: A clean layout rendering interactive cards for each active `study_post`. Each card must clearly feature:
+     - The tutor/learner's profile snapshot (name, avatar).
+     - Subject indicator badge (e.g., 'Math', 'English') with subtle specific color coding.
+     - Title, detailed description, and the clear bounty value (e.g., "Reward: 20 Credits").
+     - A high-contrast CTA button "Claim Session" or "Connect Tutor" that prompts the escrow connection flow.
+
+Please write the frontend components using React and Tailwind CSS, wiring them up to fetch context-specific data dynamically based on the active `table_id` in the URL parameters. 

@@ -1,0 +1,30 @@
+Next Step: Implement the Onboarding Invite-Code Screen and Group Join API Route
+
+Please build the onboarding layer where new users are prompted to enter a valid `join_code` to enter a Potluck Table (Clan). This requires creating both the backend API logic and an elegant user interface.
+
+1. Create Backend API Route (`app/api/clans/join/route.ts`):
+   - Method: `POST`
+   - Payload: Expect JSON containing `{ join_code: string }`.
+   - Logic:
+     - Fetch the current authenticated user's ID from the session context.
+     - Search the `tables` database table for a match with the provided `join_code`.
+     - If NO table is found, return a `404 Not Found` error with message "Invalid Table Code".
+     - If the table is found, check if the user is already a member in `table_members` to prevent duplicates.
+     - If not already a member, execute a database insert into `table_members`:
+       - `user_id`: current user's UUID
+       - `table_id`: the found table's ID
+       - `role`: 'member'
+       - `credits`: 50 (Seed them with their initial isolated 50 Study Credits for this specific clan).
+     - Return a `200 OK` success response with the `table_id`.
+
+2. Create Onboarding UI Screen (`app/onboarding/page.tsx`):
+   - Theme & Aesthetic: A distraction-free, beautiful center-card layout utilizing our cozy-warm dark glassmorphism style (deep charcoal background, soft amber glow behind the card).
+   - Core Components:
+     - Header text: "Welcome to Potluck! 🍲" and subtext "Enter your private Table Code to join your learning community."
+     - Input Field: An stylized, large character input box (e.g., uppercase auto-formatting, monospaced text) for the 6-character code.
+     - Submit Button: A high-contrast warm amber button with custom hover/click micro-interactions using Framer Motion.
+   - Error Handling & Micro-animations:
+     - If the API returns an invalid code error, trigger a Framer Motion "shake" animation on the input field and display a subtle crimson text notice: "That code doesn't match any active tables. Please double-check it."
+     - On successful join, trigger a satisfying success animation (fade out or scale up), show a toast "Joined successfully! +50 Credits granted.", and use `next/router` to redirect the user directly to the Clan Dashboard (`/dashboard/[table_id]`).
+
+Please write the full Next.js server handler code and the interactive React onboarding page component.

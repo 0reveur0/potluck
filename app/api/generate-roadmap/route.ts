@@ -72,8 +72,8 @@ async function getModelResponse(prompt: string): Promise<string> {
   }
 
   if (geminiKey) {
-    const google = await import('@google/genai')
-    const GoogleGenAI = (google.GoogleGenAI ?? google.default ?? google) as any
+    const google = (await import('@google/genai')) as any
+    const GoogleGenAI = google.GoogleGenAI ?? google.default ?? google
     const client = new GoogleGenAI({ apiKey: geminiKey })
     const response = await client.responses.create({
       model: ROADMAP_MODEL,
