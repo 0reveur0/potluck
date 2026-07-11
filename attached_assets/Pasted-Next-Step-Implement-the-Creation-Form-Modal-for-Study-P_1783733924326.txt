@@ -1,0 +1,25 @@
+Next Step: Implement the Creation Form Modal for Study Posts and Server-Side Credit Validation
+
+Please build the interactive post creation engine. When a user clicks either "Share Knowledge (Teach)" or "Ask for Help (Learn)" on the dashboard, a modal must appear allowing them to publish an entry into the current Potluck Table (Clan).
+
+1. Create Backend API Route (`POST /api/clans/[table_id]/posts/create`):
+   - Logic Requirements:
+     - Extract the authenticated user's ID, the active `table_id` from the parameters, and the payload: `{ type, title, description, subject, credit_price }`.
+     - Query the `table_members` table to verify the user belongs to this specific `table_id`. If not, return a 403 Forbidden error.
+     - **Critical Validation:** If the post `type` is 'request_to_learn' (meaning this user will pay someone else to tutor them), check if their current `credits` balance in this clan is greater than or equal to the requested `credit_price`. If they do not have enough credits, abort the transaction and return a 400 Bad Request error with the message "Insufficient Study Credits in this table".
+     - If validation passes, insert the new row into the `study_posts` table with `status = 'open'`. Return the newly created post.
+
+2. Interactive Form Modal Component (`components/CreatePostModal.tsx`):
+   - Animation: Use Framer Motion to create a premium backdrop fade-in and a scale-up slide for the modal container itself. 
+   - Conditional UI Context: If the user clicked "Share Knowledge", pre-set the form type to 'offer_to_teach' and adjust headers to say "Offer to Teach a Skill". If they clicked "Ask for Help", pre-set it to 'request_to_learn' and say "Request a Tutor".
+   - Input Controls:
+     - **Subject Picker:** A clean grid of visual pills/buttons for selection: 'Math', 'Physics', 'Chemistry', 'English', 'Programming', 'Other' (each with a unique subtle icon or dot indicator).
+     - **Topic Title:** A clean, clear text input field.
+     - **Details / Scope:** A rich description textarea so they can outline what they need help with or what they are capable of teaching.
+     - **Credit Bounty Slider/Input:** An interactive counter or slider allowing the user to set the `credit_price` (Default: 10, Range: 5 to 100).
+   - Form Submission & Error Feedback:
+     - Prevent submission if fields are blank.
+     - On submit, fire the internal API. If the server returns the "Insufficient Credits" error, display a vibrant error toast notification or error state within the modal itself without closing it.
+     - On successful creation, close the modal smoothly, reset form states, and trigger a state update in the main dashboard feed to show the new post instantly.
+
+Please generate the secure API handler logic and the animated React component for this advanced modal.
