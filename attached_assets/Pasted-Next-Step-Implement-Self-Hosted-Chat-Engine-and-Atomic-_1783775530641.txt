@@ -1,0 +1,27 @@
+Next Step: Implement Self-Hosted Chat Engine and Atomic Credit Escrow Logic
+
+Now that onboarding and routing are working perfectly, please build the core interaction layer: the 1:1 match connection, real-time messaging fallback, and the atomic credit transfer function.
+
+1. Create Match & Escrow API Route (`POST /api/matches/create`):
+   - Action: Triggered when User B clicks "Claim" on User A's study post.
+   - Logic: 
+     - Verify both users belong to the active `table_id`.
+     - Check credit sufficiency server-side based on who is the paying party ('request_to_learn' vs 'offer_to_teach').
+     - Open a database transaction (ACID): Insert a row into `matches` with `status = 'ongoing'`. Update `study_posts.status = 'matched'`.
+     - Return the `match_id`.
+
+2. Create Message API Routes (`/api/chat/messages`):
+   - `POST`: Saves a new chat message into the `messages` table under a specific `match_id`.
+   - `GET`: Fetches historical messages for a specific `match_id`. 
+   - Optimization: To simulate real-time without external web socket infrastructure, optimize this endpoint to support efficient Short-Polling (Client requests updates every 2 seconds) or simple Server-Sent Events (SSE).
+
+3. Create the Integrated Escrow Chat UI (`app/dashboard/[table_id]/chat/[match_id]/page.tsx`):
+   - Style: Maintain the warm-cozy, high-contrast dark theme.
+   - Top Banner: Display an Escrow Status Bar: "🔒 Credits Secured in Escrow. Complete the session to release funds."
+   - Chat Area: A dynamic scrolling layout displaying messages. Implement a 2-second React `useEffect` interval poll to pull new messages dynamically from `/api/chat/messages`.
+   - Action Button: A prominent "Confirm Session Completion" button visible to the person paying the credits. 
+     - When clicked, it hits `POST /api/matches/complete`.
+     - The server executes a secure transaction: Deducts credits from the learner, adds them to the teacher inside `table_members`, and updates `matches.status = 'completed'`.
+     - Trigger a smooth success confetti/particle animation using Framer Motion when the transfer succeeds.
+
+Please generate the secure server-side API Routes and the interactive polling Chat component.
