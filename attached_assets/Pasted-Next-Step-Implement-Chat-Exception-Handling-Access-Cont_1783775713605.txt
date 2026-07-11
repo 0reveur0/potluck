@@ -1,0 +1,24 @@
+Next Step: Implement Chat Exception Handling, Access Control, and Session Cancellation API
+
+We need to make our self-hosted escrow chat robust by handling cancellations, unauthorized access, and transaction errors gracefully. Please implement the following security and UX layers:
+
+1. Chat Room Access Control (Security Middleware):
+   - In `app/api/chat/messages` and the chat page route, add a strict server-side check. 
+   - Verify that the authenticated user making the request is either the `teacher_id` or the `learner_id` associated with that specific `match_id`. 
+   - If a malicious user manually types a random `match_id` in the URL, return a `403 Forbidden` JSON response or render a clean customized "Access Denied" error page matching our cozy dark theme.
+
+2. Dispute & Cancellation Logic (`POST /api/matches/cancel`):
+   - Add a "Cancel Request / Abort Session" button inside the chat interface.
+   - **Rules for Cancellation:**
+     - A session can only be cancelled if its status is still 'ongoing'.
+     - When triggered, open a database transaction: Update `matches.status = 'cancelled'`, and revert the original `study_posts.status` back to 'open' so other students can see it on the feed again.
+     - Release any temporary locks on the credits so the learner can spend them elsewhere.
+
+3. Live Polling Interrupter (State Sync):
+   - Update the client-side 2-second polling logic (`useEffect`) on the chat page.
+   - If the background fetch detects that `matches.status` has been changed to 'completed' or 'cancelled' by the other user, instantly interrupt the polling interval.
+   - Show a full-screen smooth animated overlay using Framer Motion:
+     - If completed: "✨ Session Completed! Credits transferred successfully."
+     - If cancelled: "⚠️ This session was cancelled by the counterparty. Returning to feed..." with a countdown redirecting them back to `/dashboard/[table_id]`.
+
+Please generate the updated API handling logic for cancellations, enforce the security check, and update the React chat screen component with these clean fallback UI states.
