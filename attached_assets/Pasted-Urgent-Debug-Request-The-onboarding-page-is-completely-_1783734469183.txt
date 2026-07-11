@@ -1,0 +1,21 @@
+Urgent Debug Request: The `/onboarding` page is completely inaccessible or crashing. Please conduct a thorough review of all potential failure points across the routing, backend API, and frontend rendering layers.
+
+Please inspect and fix the following specific areas:
+
+1. Dynamic Session & Authentication Check (Potential 500 Server Error):
+   - In Next.js App Router, server components like `app/onboarding/page.tsx` or API routes can crash if they try to access cookies, headers, or authentication sessions without proper async handling or fallback UI.
+   - Ensure the user session fetching logic handles unauthenticated states gracefully (e.g., redirecting to `/login` instead of throwing a fatal null-pointer exception).
+
+2. Client-Side Hooks vs. Server Components (Potential Compiling/Hydration Error):
+   - If `app/onboarding/page.tsx` uses client hooks like `useState`, `useEffect`, `useRouter` (from `next/navigation`), or Framer Motion animations, it MUST have the `"use client";` directive explicitly declared at the very top of the file.
+   - Ensure `useRouter` is imported from `next/navigation` (App Router standard) and NOT from `next/router` (Pages Router standard, which crashes the app in the `app` directory).
+
+3. Database Client Singleton (Potential Pool Timeout/Crash):
+   - In `app/api/clans/join/route.ts`, check if the PostgreSQL/Prisma client is re-initializing on every single request or hot-reload. This exhausts connection pools instantly in local development and causes the entire app to hang or return 500 errors. 
+   - Enforce a global variable singleton for the database client.
+
+4. Route Handler Validation & Error Trapping:
+   - Wrap the entire database transaction inside a clear `try/catch` block within the POST route.
+   - Ensure that if the table is not found, the server responds with a proper `NextResponse.json({ error: "..." }, { status: 404 })` instead of letting the entire server function crash silently.
+
+Please analyze the onboarding page component code and the join API route handler side-by-side, find the mismatch causing the blocking error, and provide the fully patched, production-ready source code for both files.
