@@ -1,0 +1,23 @@
+Next Step: Implement the Student Profile Page and Isolated Credit Ledger History
+
+Please build a comprehensive Student Profile interface and its supporting internal backend API endpoints to track user activity, multi-clan memberships, and a transaction ledger.
+
+1. Create Backend API Routes:
+   - `GET /api/user/profile`: Fetches the current user's profile details (name, avatar, bio, and aggregate stats like "Total Sessions Taught" and "Total Sessions Learned").
+   - `GET /api/user/credits-history`: Fetches a detailed transaction history from the `matches` and `study_posts` tables. For the current user, return a list of completed matches showing:
+     - The Potluck Table/Clan name where it happened.
+     - The role of the user (whether they acted as a 'Tutor' or 'Learner').
+     - The topic title and subject.
+     - The credit delta (e.g., "+20 Credits" highlighted in green for teaching, or "-20 Credits" highlighted in red for learning).
+     - The completion timestamp.
+
+2. Create Profile UI Screen (`app/profile/page.tsx`):
+   - Layout & Aesthetic: A clean, modern two-column dashboard layout wrapped in our premium cozy-warm dark glassmorphism theme (deep charcoal backgrounds, soft amber accents).
+   - Left Column: User Profile Card
+     - Display a large custom avatar placeholder or uploaded image.
+     - Display the user's Full Name, a short editable biography text area, and a grid of summary badges (e.g., "🏆 12 Lessons Taught", "📚 8 Lessons Received").
+   - Right Column: Multi-Clan & Transaction Ledger
+     - **Section A: Joined Tables Overview:** A row of cards displaying every Potluck Table the user has joined, along with their current isolated credit balance inside that specific table (e.g., "Class 12A: 65 Credits", "Coding Club: 30 Credits"). Includes a quick action button to jump directly to that table's feed.
+     - **Section B: Live Credit Ledger:** A beautifully styled vertical timeline showing the user's history of learning exchanges. Each row must clearly state the subject, clan, date, and use color-coded typography to distinguish earned credits from spent credits.
+
+Please generate the Next.js API endpoints and the front-end profile interface, ensuring smooth loading states and empty-state placeholders if a student hasn't joined any sessions yet.
